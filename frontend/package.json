@@ -1,0 +1,23 @@
+{
+  "name": "@silentship/frontend",
+  "version": "0.1.0",
+  "description": "silentship site: live changelog of Office.js rollouts",
+  "private": true,
+  "license": "MIT",
+  "homepage": "https://silentship.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/R0men/silentship.git",
+    "directory": "frontend"
+  },
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000"
+  },
+  "dependencies": {
+    "next": "^16.4.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  }
+}

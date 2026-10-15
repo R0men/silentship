@@ -1,0 +1,29 @@
+{
+  "name": "silentship",
+  "version": "0.1.0",
+  "description": "Office.js CDN change monitor: rollouts across edges and API-surface diffs",
+  "private": true,
+  "license": "MIT",
+  "homepage": "https://silentship.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/R0men/silentship.git"
+  },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c magenta,cyan \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w frontend",
+    "start": "concurrently -k -n api,web -c magenta,cyan \"npm run start -w backend\" \"npm run start -w frontend\"",
+    "crawl": "npm run crawl -w backend",
+    "test": "npm run test -w backend"
+  },
+  "dependencies": {
+    "concurrently": "^10.0.6"
+  }
+}

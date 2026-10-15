@@ -1,0 +1,17 @@
+node_modules
+.next
+.next-*
+.env
+/data
+.deploy.lock
+# Local agent tooling, not part of the project
+/.agents/
+/.windsurf/
+/.claude/
+/skills-lock.json
+/unami.md
+
+# Private notes: business plan, production server details, Claude instructions
+/private/
+/CLAUDE.md
+/docs/CLAUDE.md

@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # @types/office-js feeds the API catalogue (GA/preview status); keep it current.
+      office-types:
+        patterns: ["@types/office-js*"]
+      dependencies:
+        patterns: ["*"]
+        exclude-patterns: ["@types/office-js*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

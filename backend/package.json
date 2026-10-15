@@ -1,0 +1,39 @@
+{
+  "name": "@silentship/backend",
+  "version": "0.1.0",
+  "description": "silentship backend: crawler, rollouts, API-surface diff, alerts, JSON API",
+  "private": true,
+  "license": "MIT",
+  "homepage": "https://silentship.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/R0men/silentship.git",
+    "directory": "backend"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/cli.js start",
+    "dev": "node src/cli.js dev",
+    "serve": "node src/cli.js serve",
+    "crawl": "node src/cli.js crawl",
+    "test": "vitest run",
+    "watch": "node src/cli.js watch"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.29.9",
+    "@types/office-js": "^1.0.612",
+    "@types/office-js-preview": "^1.0.732",
+    "dotenv": "^18.0.8",
+    "fastify": "^5.12.7",
+    "mongodb": "^7.7.0",
+    "node-cron": "^4.6.0",
+    "prettier": "^3.9.10"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^11.3.0",
+    "vitest": "^5.0.4"
+  }
+}

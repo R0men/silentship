@@ -1,0 +1,31 @@
+# /etc/systemd/system/silentship.service
+# Runs the API (crawler + alerts, 127.0.0.1:4000) and the Next.js site (127.0.0.1:3000) together.
+#   sudo systemctl daemon-reload && sudo systemctl enable --now silentship
+#   sudo journalctl -u silentship -f
+# Adjust User= and the paths if the checkout lives elsewhere (docs/SETUP.md).
+
+[Unit]
+Description=silentship (Office.js CDN monitor)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=silentship
+WorkingDirectory=/home/silentship/silentship
+Environment=NODE_ENV=production
+# Secrets live in .env next to the code (mode 600, owned by the service user); both apps read it.
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+# Crawls hold several MB per file version in memory, analysis workers up to WORKER_MAX_MB each.
+MemoryMax=3G
+
+# Hardening: the service only writes to its own directory (no ProtectHome: it lives in a home directory).
+NoNewPrivileges=true
+ProtectSystem=strict
+PrivateTmp=true
+ReadWritePaths=/home/silentship/silentship
+
+[Install]
+WantedBy=multi-user.target
