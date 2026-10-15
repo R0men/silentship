@@ -13,8 +13,9 @@ Code: `POST /api/subscribe`, `/confirm`, `/unsubscribe` — `backend/src/web/ser
   mail gateways (Defender Safe Links, Mimecast) open every link in a message to scan it, which would confirm
   any address someone typed into the form and unsubscribe people. `GET /confirm` shows a page with a button
   (`web/action-page.js`); its `POST /confirm` confirms and redirects (303) to `/?notice=confirmed`.
-- **Abuse protection:** 5 requests per hour per IP; at most 3 confirmation emails per address per day; a
-  global cap `MAX_CONFIRMATIONS_PER_HOUR` (200). The response is the same whether the address is known or
+- **Abuse protection:** 5 requests per hour per IP; per address at most one email a minute, 3 per 10
+  minutes and 10 a day (claimed atomically in MongoDB, so parallel submits cannot slip past; a submit over the limit still
+  answers `ok` but sends nothing); a global cap `MAX_CONFIRMATIONS_PER_HOUR` (200). The response is the same whether the address is known or
   not, so the form does not leak subscribers. The IP comes from `X-Forwarded-For`, trusting loopback proxies
   only (`TRUST_PROXY`), and nginx overwrites that header with the real address.
 - An address submitted again: a previously unsubscribed one must confirm again; an unconfirmed one gets the
@@ -22,7 +23,7 @@ Code: `POST /api/subscribe`, `/confirm`, `/unsubscribe` — `backend/src/web/ser
   channels wait in `pendingChannels` and a confirmation email applies them on the button; otherwise it gets
   `alreadySubscribedEmail` ("You're already subscribed", with an unsubscribe link). So every submit sends
   an email and the form's "Check your inbox" is always true without revealing who is subscribed. The
-  3-per-day limit covers all of these emails.
+  per-address limits cover all of these emails.
 - Unconfirmed addresses are deleted after 30 days (`pruneUnconfirmed`, after every crawl).
 - Unsubscribe: `GET /unsubscribe?token=…` (the link in emails) shows a page with a button; `POST
   /unsubscribe` unsubscribes. A POST whose body is `List-Unsubscribe=One-Click` (RFC 8058, sent by mail

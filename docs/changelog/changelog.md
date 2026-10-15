@@ -31,3 +31,4 @@
   - `[Bug Fix]` Alerts are queued and retried; one alert per build, then updates
   - `[Bug Fix]` Subscribing an address that is already subscribed
   - `[Bug Fix]` Size limit on CDN responses
+  - `[Bug Fix]` Per-address limits on subscribe emails

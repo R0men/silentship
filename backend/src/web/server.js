@@ -130,10 +130,26 @@ export async function buildServer() {
       if (Object.keys(update).length) await subscribers.updateOne({ _id: existing._id }, { $set: update });
     }
     // Every submit gets an email, so the form's "check your inbox" is true and the reply leaks nothing.
-    // At most 3 per address per day, so the form cannot be used to flood an inbox.
-    const dayAgo = Date.now() - 24 * 3600_000;
-    const recent = (sub.confirmationsSent ?? []).filter((t) => new Date(t).getTime() > dayAgo);
-    if (recent.length < 3) {
+    // Per address: one a minute, 3 per 10 minutes, 10 a day, so the form cannot be used to flood an inbox.
+    // The slot is claimed atomically: parallel submits must not all pass the check before any of them records it.
+    const now = new Date();
+    const ago = (ms) => new Date(now.getTime() - ms);
+    const sentToday = { $filter: { input: { $ifNull: ["$confirmationsSent", []] }, cond: { $gt: ["$$this", ago(24 * 3600_000)] } } };
+    const sentSince = (ms) => ({ $size: { $filter: { input: sentToday, cond: { $gt: ["$$this", ago(ms)] } } } });
+    const { modifiedCount } = await subscribers.updateOne(
+      {
+        email,
+        $expr: {
+          $and: [
+            { $lt: [{ $size: sentToday }, 10] },
+            { $lt: [sentSince(10 * 60_000), 3] },
+            { $eq: [sentSince(60_000), 0] },
+          ],
+        },
+      },
+      [{ $set: { confirmationsSent: { $concatArrays: [sentToday, [now]] } } }],
+    );
+    if (modifiedCount) {
       if (!allowConfirmationEmail("global")) return reply.code(429).send({ error: "too_many_requests" });
       const link = `${config.publicUrl}/confirm?token=${sub.token}`;
       const message =
@@ -144,7 +160,6 @@ export async function buildServer() {
               unsubscribe: `${config.publicUrl}/unsubscribe?token=${sub.token}`,
             });
       await sendEmail({ to: email, ...message });
-      await subscribers.updateOne({ email }, { $set: { confirmationsSent: [...recent, new Date()] } });
     }
     // Same answer whether or not the address was already known, so the form does not leak subscribers.
     return { ok: true };

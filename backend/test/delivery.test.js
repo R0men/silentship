@@ -204,6 +204,35 @@ describe("subscription links", () => {
     expect(sub.pendingChannels).toBeUndefined();
   });
 
+  it("sends one email per address per minute, even to parallel submits", async () => {
+    await col.subscribers.updateOne({ token: "tok" }, { $set: { confirmationsSent: [] } });
+    const submit = () =>
+      app.inject({ method: "POST", url: "/api/subscribe", payload: { email: "dev@example.test" }, remoteAddress: "10.0.0.2" });
+    const replies = await Promise.all([submit(), submit(), submit()]);
+    expect(replies.map((r) => r.json())).toEqual([{ ok: true }, { ok: true }, { ok: true }]);
+    expect(sent).toHaveLength(1);
+    expect((await col.subscribers.findOne({ token: "tok" })).confirmationsSent).toHaveLength(1);
+  });
+
+  it("allows 3 emails per address per 10 minutes and 10 per day, forgetting older ones", async () => {
+    const ago = (min) => new Date(Date.now() - min * 60_000);
+    let ip = 10;
+    const trySend = async (history) => {
+      sent.length = 0;
+      await col.subscribers.updateOne({ token: "tok" }, { $set: { confirmationsSent: history } });
+      // A fresh IP each time, so the per-IP limiter stays out of the way.
+      await app.inject({ method: "POST", url: "/api/subscribe", payload: { email: "dev@example.test" }, remoteAddress: `10.0.1.${ip++}` });
+      return sent.length;
+    };
+    expect(await trySend([ago(2), ago(3)])).toBe(1);
+    expect(await trySend([ago(2), ago(3), ago(9)])).toBe(0);
+    expect(await trySend([ago(2), ago(3), ago(11)])).toBe(1);
+    const day = Array.from({ length: 10 }, (_, i) => ago(60 + i * 60));
+    expect(await trySend(day)).toBe(0);
+    expect(await trySend([ago(25 * 60), ...day.slice(1)])).toBe(1);
+    expect((await col.subscribers.findOne({ token: "tok" })).confirmationsSent).toHaveLength(10);
+  });
+
   it("sends unknown tokens to the invalid-link notice", async () => {
     const res = await app.inject({ method: "GET", url: "/confirm?token=nope" });
     expect(res.headers.location).toBe("https://example.test/?notice=invalid-link");
