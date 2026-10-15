@@ -14,9 +14,14 @@ estimated $6.1–9.1M cost from filed issues alone.
 
 **Scope:** many breakages happen not in the JavaScript on the CDN but inside the native host (Outlook
 Classic/New, Excel win32, desktop vs. web differences). A CDN monitor **cannot see** those. So the promise
-is: "you learn about changes to the JavaScript layer of Office.js within minutes, not from customers weeks
+is: "you learn about changes to the JavaScript layer of Office.js within the hour, not from customers weeks
 later, and you can quickly tell whether the CDN is to blame" — not "we catch every breaking change". The
 same limit is stated in the site footer and in `llms.txt`.
+
+**Timing, honestly:** a new version shows on the site after the next crawl (every 10 minutes). An alert
+waits until the version has been seen in two runs and the channel has been quiet for 20 minutes — typically
+30–40 minutes after the first sighting. Microsoft rolls out over hours and days, so this is fast enough; do
+not promise "within minutes" for alerts.
 
 ## 1. Stack (as built)
 
@@ -78,6 +83,10 @@ The loader picks the host file from `_host_Info` (from `window.external.GetHostI
 4. **Watchlist:** a subscriber lists the APIs their add-in uses (`Office.context.ui.displayDialogAsync`,
    `Excel.Range.*`) and is alerted only about changes that touch them — the main defence against noise.
    Today entries are added from the CLI (`npm run watch`); there is no UI yet.
+   Without a watchlist, email goes out only for rollouts that changed the public API or are High, and only
+   once a version has been seen in two runs: a build with zero API changes is noise for add-in developers,
+   and a one-run sighting is a short CDN incident rather than a release (kept in the data, see PLAN).
+   A confirmed build that every edge stops serving for 24 hours is a rollback and **always** alerts.
 5. An ES5/IE11 check is low priority: it only matters for old MSI builds of Office with the Trident WebView.
 
 ### C. Customer tests (later phases)

@@ -10,7 +10,7 @@ const sans = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 const DESCRIPTION =
-  "Every change Microsoft ships to Office.js on the CDN: build numbers, changed host files and API-surface diffs, detected within minutes.";
+  "Every change Microsoft ships to Office.js on the CDN: build numbers, changed host files and API-surface diffs, checked every 10 minutes.";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),

@@ -222,6 +222,67 @@ function changeRow(e) {
 }
 
 /**
+ * A confirmed rollout that every sampled edge stopped serving: Microsoft pulled the build back. Sent even
+ * when the build changed no API — the add-in is suddenly back on the previous code.
+ */
+export function rollbackEmail({
+  channel,
+  title,
+  fromBuilds,
+  files,
+  peakShare,
+  firstSeenAt,
+  totalChanges,
+  entries,
+  more,
+  url,
+  unsubscribe,
+  watched,
+}) {
+  const channelName = CHANNEL_LABEL[channel] ?? channel;
+  const back = fromBuilds.length ? html`, so the CDN serves ${fromBuilds.join(", ")} again` : "";
+  const changesBlock = entries.length
+    ? html`<h2 style="margin:36px 0 8px;font:600 13px/1 ${SANS};color:${C.muted};letter-spacing:0.02em;">
+          ${watched ? "Reverted changes matching your watchlist" : "API changes that are reverted with it"}
+        </h2>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          ${entries.map(changeRow)}
+        </table>
+        ${more ? html`<p style="margin:12px 0 0;font:400 13px/1.5 ${SANS};color:${C.muted};">… and ${more} more on the rollout page.</p>` : ""}`
+    : "";
+  const body = html`
+    <p style="margin:0 0 14px;">
+      <span style="font:600 11px/1 ${SANS};letter-spacing:0.08em;text-transform:uppercase;color:${C.medium};"
+        >Pulled back</span
+      >
+      <span style="font:500 11px/1 ${SANS};letter-spacing:0.08em;text-transform:uppercase;color:${C.faint};"
+        >&nbsp;·&nbsp; ${channelName}</span
+      >
+    </p>
+    <h1 style="margin:0 0 6px;font:600 28px/1.2 ${MONO};color:${C.text};letter-spacing:-0.02em;">${title}</h1>
+    <p style="margin:0 0 28px;color:${C.muted};">
+      Microsoft has pulled this Office.js build back on the ${channelName} CDN: none of the sampled edges has served it
+      for 24 hours${back}. If your add-in changed behaviour twice, this is why.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        ${fact("Files", files)} ${fact("Peak share", pct(peakShare))}
+        ${fact("First seen", firstSeenAt.toISOString().slice(0, 10))} ${fact("API changes", totalChanges)}
+      </tr>
+    </table>
+    ${changesBlock}
+    <div style="height:32px;line-height:32px;font-size:0;">&nbsp;</div>
+    ${button(url, "View rollout")}
+  `;
+  return layout({
+    preheader: `${title} pulled back on ${channelName} after reaching ~${pct(peakShare)} of edges.`,
+    body,
+    footer: html`You get this because you subscribed to silentship alerts for the ${channelName} channel.
+      <a href="${unsubscribe}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a> in one click.`,
+  });
+}
+
+/**
  * Rollout alert for one subscriber. `entries` are the summarized API changes (one per path), already
  * filtered by the subscriber's watchlist; `more` is how many were cut off.
  */

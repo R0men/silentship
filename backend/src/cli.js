@@ -50,7 +50,7 @@ const USAGE = `usage:
   cli start                                  web server + scheduled crawls (${config.cron})
   cli dev                                    like start, on a throwaway in-memory MongoDB
   cli watch <email> <pattern> [host,host]    add a watchlist entry, e.g. Excel.Range.* excel
-  cli mail-preview <email>                   send a sample confirmation and alert email (real data, dummy tokens)`;
+  cli mail-preview <email>                   send sample confirmation, alert and rollback emails (real data, dummy tokens)`;
 
 async function main(argv) {
   const [command, ...args] = argv;
@@ -101,7 +101,9 @@ async function main(argv) {
       const [to] = args;
       if (!to) throw new Error(USAGE);
       const sent = await sendPreviewEmails(to);
-      console.log(`Sent 2 preview emails to ${to} (alert: ${sent.channel}/${sent.group}, ${sent.changes} API changes)`);
+      console.log(
+        `Sent ${sent.emails} preview emails to ${to} (alert: ${sent.channel}/${sent.group}, ${sent.changes} API changes)`,
+      );
       await closeDb();
       return;
     }

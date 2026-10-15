@@ -72,3 +72,60 @@ describe("html", () => {
   });
 });
 
+describe("alert rules", async () => {
+  const { emailWorthy, groupConfirmed, groupRolledBack } = await import("../src/notify/alerts.js");
+  const at = (i) => new Date(Date.UTC(2026, 9, 15, 16, i * 10));
+
+  it("does not alert on a version seen in a single run", () => {
+    const blip = {
+      status: "rolling",
+      history: [
+        { at: at(0), share: 0.625 },
+        { at: at(1), share: 0 },
+        { at: at(2), share: 0 },
+      ],
+    };
+    expect(groupConfirmed([blip])).toBe(false);
+  });
+
+  it("alerts once any file was seen in two runs, or completed", () => {
+    const seenTwice = {
+      status: "rolling",
+      history: [
+        { at: at(0), share: 0.125 },
+        { at: at(1), share: 0 },
+        { at: at(2), share: 0.25 },
+      ],
+    };
+    expect(groupConfirmed([{ status: "rolling", history: [{ at: at(0), share: 0.5 }] }, seenTwice])).toBe(true);
+    expect(groupConfirmed([{ status: "complete", history: [] }])).toBe(true);
+  });
+
+  it("emails only rollouts that changed the API, or high severity", () => {
+    expect(emailWorthy({ changes: [], severity: "low" })).toBe(false);
+    expect(emailWorthy({ changes: [{ path: "Excel.Range" }], severity: "low" })).toBe(true);
+    expect(emailWorthy({ changes: [], severity: "high" })).toBe(true);
+  });
+
+  it("treats a confirmed build that every edge stopped serving as a rollback", () => {
+    const pulled = {
+      status: "abandoned",
+      history: [
+        { at: at(0), share: 0.25 },
+        { at: at(1), share: 0.5 },
+        { at: at(2), share: 0 },
+      ],
+    };
+    const blip = {
+      status: "abandoned",
+      history: [
+        { at: at(0), share: 0.625 },
+        { at: at(1), share: 0 },
+      ],
+    };
+    expect(groupRolledBack([pulled, { ...pulled }])).toBe(true);
+    expect(groupRolledBack([blip])).toBe(false);
+    expect(groupRolledBack([pulled, { ...pulled, status: "complete" }])).toBe(false);
+    expect(groupRolledBack([])).toBe(false);
+  });
+});

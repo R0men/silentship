@@ -15,6 +15,7 @@ An index of work agreed in `TECH.md` but not done. Unlike [`../changelog/changel
 | 7 | Correlation with `OfficeDev/office-js` issues | 2 | on demand | 🔵 |
 | 8 | Discord / Teams / Telegram | — | not started | 🟡 |
 | 9 | Proxy Umami through the own domain (`/stats/*`) if ad blockers cut the stats | — | only if numbers look low | 🟡 |
+| 10 | CDN incidents: show short outages (e.g. a file 404 on most edges for one run) as their own events | 1 | not started | 🟠 nobody else records these |
 
 Order: **1 → 2 → 4**, the rest as signals come in.
 
@@ -30,3 +31,20 @@ The data is in `apiChanges` (index `{path}`). Needed: a route that is **not** un
 proxied to the backend) — e.g. `/reference/excel/range/applyfilter`; a read model "change history of a
 path"; canonical URLs; a `<title>` with the method and host; entries in `app/sitemap.js`
 (`docs/architecture/seo.md`).
+
+## 10. CDN incidents
+
+For an add-in developer a run where most edges answer 404 for a host file is a real outage, however short:
+on 2026-10-15 at 16:16 UTC five of eight edges returned 404 for `onenote-winrt-16.00.js` (OneNote on
+Windows), and the next run served it again. Its per-run samples expire around 2027-01-13 (TTL). Today such a sighting is a rollout that is never confirmed and
+is abandoned after 24 h without an alert (`docs/architecture/alerts.md`). Plan:
+
+- Detect it from data we already have: a removal (or a new sha) seen in exactly one run, or 404 / 5xx on
+  ≥ 50% of a file's samples while the stable version keeps being served.
+- Show it on the site as its own event, e.g. "CDN incident: onenote-winrt-16.00.js 404 on 5/8 edges,
+  16:16 UTC, ~10 min", with edge IPs and locations from `snapshots`; list it in RSS and `llms.txt`.
+- Keep it: `snapshots` expire after 90 days (TTL), so an incident record must copy its evidence (sample
+  counts, edges, timestamps) into a permanent collection when detected. Do not delete the abandoned rollout
+  documents of past incidents.
+- Alert on it only once it is clearly an outage (several runs or several files); a single-run event is
+  site-only.

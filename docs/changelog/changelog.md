@@ -24,3 +24,4 @@
   - `[Style]` HTML emails in the site's style; `mail-preview` command
   - `[Style]` One product name — silentship; launch banner removed
   - `[Docs]` Documentation restructured and translated to English
+  - `[Bug Fix]` Rollout alerts need confirmation and API changes; rollbacks always alert

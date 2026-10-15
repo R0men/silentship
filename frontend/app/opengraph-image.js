@@ -36,7 +36,7 @@ export default function Image() {
             Know when Office.js changes on the CDN
           </div>
           <div style={{ fontSize: 32, color: "#a1a1aa" }}>
-            New builds, CDN rollout share and API diffs — within minutes.
+            New builds, CDN rollout share and API diffs, checked every 10 minutes.
           </div>
         </div>
       </div>

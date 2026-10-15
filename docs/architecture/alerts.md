@@ -36,9 +36,27 @@ Matching (`matchesWatch`), case-insensitive:
   off runtime objects we cannot reflect, but its name is listed in `OSF.DDA.AsyncMethodNames`.
 
 A subscriber with a watchlist is alerted only on a match, and the severity is computed over the matching
-changes only. Without a watchlist — any rollout of the channel. Then the `minSeverity` filter applies.
+changes only. Without a watchlist — any rollout of the channel **that changed the public API, or is High**
+(e.g. a removed file); a new build with zero API changes is not worth an email (`emailWorthy`). Then the
+`minSeverity` filter applies. Slack gets every confirmed group regardless.
 
 ## Alert batching
+
+**Confirmation first.** A group may alert as a rollout only once one of its files has been sighted in at
+least `CONFIRM_RUNS` (2) runs, or has completed (`groupConfirmed`). A single-run sighting is a short CDN
+incident, not a release: on 2026-10-15 at 16:16 UTC five of eight edges returned 404 for
+`onenote-winrt-16.00.js` — OneNote add-ins on Windows served by those edges would not have loaded — and
+every run after served the file again. Before this rule that produced a "files removed" (High) alert, which
+was wrong as a *rollout* alert. Unconfirmed groups stay pending and, if never seen again, are abandoned
+after 24 h without an alert. **The data is kept** (the rollout document with its share history; per-run
+samples in `snapshots`, TTL 90 days) — surfacing such incidents is planned (`docs/tasks/PLAN.md`, #10).
+
+**Rollbacks always alert.** When every file of a confirmed group has been abandoned (no sampled edge has
+served it for 24 h), Microsoft pulled the build back (`groupRolledBack`). `notifyRollback` sends a
+"pulled back" email to every subscriber of the channel — also when the build changed no API and regardless
+of `minSeverity` — and a Slack line; watchlist subscribers only when the build touched a watched API. The
+group gets `rollbackNotifiedAt`, so it alerts once. Only groups abandoned within the last 7 days are
+considered. A one-run incident is never confirmed, so it never produces a rollback alert either.
 
 A new version reaches the host files one by one over several runs. An alert goes out once the channel has
 had no new rollouts for `ALERT_QUIET_MINUTES` (20 min): one message per target build — how many files, what
@@ -46,7 +64,7 @@ share of edges, which API changes (one line per path with the list of files). Se
 
 ## What the emails look like
 
-`email-templates.js`: `confirmEmail` (double opt-in) and `alertEmail` (rollout) in the site's style — dark
+`email-templates.js`: `confirmEmail` (double opt-in), `alertEmail` (rollout) and `rollbackEmail` (pulled back) in the site's style — dark
 `#060607` background, white as the only bright accent (button, headline number, share bar), severity
 colours (`#ff5b6b` / `#f2b544` / grey), API paths in a monospace font. Email clients ignore `<style>`, web
 fonts and flexbox unevenly, so the layout is nested tables with inline styles, colours are repeated as
@@ -58,7 +76,8 @@ edge share with a bar, files / API changes / status, up to 25 changes (one per p
 more"), a button to the rollout page and a footer with the unsubscribe link. Change kinds are spelled out
 ("enum values changed" instead of `enumChanged`).
 
-**Preview with real data** (the newest high-severity group, dummy tokens, nothing marked as sent):
+**Preview with real data** (the newest high-severity group — confirmation, rollout and rollback emails;
+dummy tokens, nothing marked as sent):
 
 ```sh
 node backend/src/cli.js mail-preview you@example.com

@@ -11,7 +11,7 @@ Official `mongodb` driver, no ORM. Database name: `MONGODB_DB`, else the path of
 |---|---|---|
 | `runs` | One crawl of a channel: stable loader build, requests, bytes, rollouts created/completed, stale samples, status, error | `{channel, region, startedAt}` |
 | `fileStates` | Per file: the stable version (sha, build, `Last-Modified` floor for conditional requests), `retiredShas` | unique `{channel, region, path}` |
-| `rollouts` | channel, region, path, role, hostType/Platform, fromSha/fromBuild → toSha/toBuild, group, status, share, recentShare, peakShare, history[{at, share}] (up to 300 points), firstSeenAt, lastSeenAt, completedAt, severity, apiChangeCount, apiDiffNote, notifiedAt | `{channel, region, path, status}`, `{channel, group}`, `{firstSeenAt}`, `{notifiedAt}` |
+| `rollouts` | channel, region, path, role, hostType/Platform, fromSha/fromBuild → toSha/toBuild, group, status, share, recentShare, peakShare, history[{at, share}] (up to 300 points), firstSeenAt, lastSeenAt, completedAt, severity, apiChangeCount, apiDiffNote, notifiedAt, rollbackNotifiedAt | `{channel, region, path, status}`, `{channel, group}`, `{firstSeenAt}`, `{notifiedAt}` |
 | `apiChanges` | One row per changed API path in a rollout (there can be thousands): rolloutId, file, path, kind, severity, apiStatus, apiSet, before/after | `{rolloutId}`, `{path}` |
 | `snapshots` | Per file per run: sample counts, variants `{sha, build, count, lastModified}`, edge IPs, bytes | `{channel, region, path, fetchedAt}`, TTL 90 days |
 | `subscribers` | email, token, channels[], minSeverity, `watchItems[]`, createdAt/confirmedAt/unsubscribedAt, confirmationsSent[] | unique `{email}`, `{token}` |
