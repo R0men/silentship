@@ -16,6 +16,13 @@ import { compareBuilds } from "../crawler/build.js";
 export const COMPLETE_RUNS = 3;
 /** A rollout not seen on any sample for this long is considered pulled back. */
 export const ABANDON_MS = 24 * 3600_000;
+/**
+ * Runs a version must be sighted in before its group counts as a rollout (alerts, site, RSS, sitemap).
+ * A single run of 404s or of a new body is a short CDN incident, not a release (2026-10-15: five of eight
+ * edges returned 404 for onenote-winrt-16.00.js in one run, then served it again). Such data is kept:
+ * see docs/tasks/PLAN.md.
+ */
+export const CONFIRM_RUNS = 2;
 /** How many share points to keep per rollout for the history chart. */
 export const HISTORY_LIMIT = 300;
 /** Runs averaged for the displayed share: with ~8 samples a single run swings by 12.5% steps. */

@@ -115,7 +115,7 @@ export default function Rollouts({ initial, initialOverview }) {
           {stats && (
             <p className="muted">
               {stats.rollouts30d} build{stats.rollouts30d === 1 ? "" : "s"} rolled out in the last 30 days ·{" "}
-              {stats.high30d} high severity
+              {stats.high30d} with high-severity changes
             </p>
           )}
         </div>

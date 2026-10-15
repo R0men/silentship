@@ -87,6 +87,7 @@ The loader picks the host file from `_host_Info` (from `window.external.GetHostI
    once a version has been seen in two runs: a build with zero API changes is noise for add-in developers,
    and a one-run sighting is a short CDN incident rather than a release (kept in the data, see PLAN).
    A confirmed build that every edge stops serving for 24 hours is a rollback and **always** alerts.
+   The site follows the same confirmation rule: an unconfirmed sighting is not shown as a rollout.
 5. An ES5/IE11 check is low priority: it only matters for old MSI builds of Office with the Trident WebView.
 
 ### C. Customer tests (later phases)

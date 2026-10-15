@@ -38,6 +38,9 @@ export function sha256(data) {
 
 const RETRYABLE = new Set([408, 425, 429, 500, 502, 503, 504]);
 
+/** The largest Office.js file is under 2 MB; anything near this is not a file we want in memory. */
+export const MAX_BODY_BYTES = 32 * 1024 * 1024;
+
 /**
  * One GET on a fresh TCP/TLS connection (`agent: false`). Keep-alive would pin every sample to the same
  * edge server; a new connection lets the CDN balance us onto different ones, which is what sampling needs.
@@ -47,19 +50,26 @@ function getOnce(url, headers, timeoutMs) {
   return new Promise((resolve, reject) => {
     const req = https.get(url, { headers, agent: false, timeout: timeoutMs }, (res) => {
       const chunks = [];
-      res.on("data", (c) => chunks.push(c));
+      let size = 0;
+      res.on("data", (c) => {
+        size += c.length;
+        if (size > MAX_BODY_BYTES) req.destroy(new Error(`response larger than ${MAX_BODY_BYTES} bytes`));
+        else chunks.push(c);
+      });
       res.on("error", reject);
       res.on("end", () => {
         const raw = Buffer.concat(chunks);
         const encoding = res.headers["content-encoding"];
         try {
+          // maxOutputLength: a small compressed body must not expand into gigabytes.
+          const limit = { maxOutputLength: MAX_BODY_BYTES };
           const body =
             encoding === "gzip"
-              ? zlib.gunzipSync(raw)
+              ? zlib.gunzipSync(raw, limit)
               : encoding === "br"
-                ? zlib.brotliDecompressSync(raw)
+                ? zlib.brotliDecompressSync(raw, limit)
                 : encoding === "deflate"
-                  ? zlib.inflateSync(raw)
+                  ? zlib.inflateSync(raw, limit)
                   : raw;
           resolve({ status: res.statusCode, headers: res.headers, body, wireBytes: raw.length });
         } catch (err) {

@@ -27,7 +27,7 @@ export default function Subscribe() {
       // Counted after the API accepted it, so failed attempts do not inflate the conversion.
       window.umami?.track("subscribe", { beta: form.beta.checked });
       form.reset();
-      toast("Check your inbox — we sent a confirmation link.");
+      toast("Check your inbox — we sent you an email.");
     } catch (err) {
       toast(ERRORS[err.status] ?? "Something went wrong. Please try again.", true);
     } finally {

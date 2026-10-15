@@ -33,6 +33,11 @@ async function ensureIndexes(c) {
     c.apiChanges.createIndex({ path: 1 }),
     c.subscribers.createIndex({ email: 1 }, { unique: true }),
     c.subscribers.createIndex({ token: 1 }, { unique: true }),
+    c.deliveries.createIndex({ key: 1, transport: 1, subscriberId: 1 }, { unique: true }),
+    c.deliveries.createIndex({ sentAt: 1, failedAt: 1, createdAt: 1 }),
+    c.deliveries.createIndex({ kind: 1, channel: 1, group: 1, transport: 1 }),
+    // Rendered messages carry addresses; a group's alert history is only needed while it rolls out.
+    c.deliveries.createIndex({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 3600 }),
   ]);
 }
 
@@ -44,6 +49,8 @@ async function ensureIndexes(c) {
  *  snapshots   — per file per run: how many samples returned each version (TTL 90 days)
  *  apiChanges  — one row per changed API path per rollout (can be thousands per rollout)
  *  subscribers — email, token, channels, minSeverity, embedded `watchItems`
+ *  deliveries  — outbox: one rendered alert per recipient (email or Slack), sent and retried by
+ *                flushDeliveries (TTL 90 days)
  */
 export async function db() {
   if (!collections) {
@@ -58,6 +65,7 @@ export async function db() {
       rollouts: d.collection("rollouts"),
       apiChanges: d.collection("apiChanges"),
       subscribers: d.collection("subscribers"),
+      deliveries: d.collection("deliveries"),
     };
     await ensureIndexes(collections);
   }

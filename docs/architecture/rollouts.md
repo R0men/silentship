@@ -29,6 +29,13 @@ Code: pure functions `tallySamples` and `planFile` in `backend/src/pipeline/roll
 ## Groups
 
 Rollouts of one build are grouped (`groupKey` in `run.js`): the key is `toBuild`; files without a build get
-`sha-<12 chars>`; removals get `removed-<fromBuild|sha>`. On the site one Microsoft release = one page
+`sha-<12 chars>`; removals get `removed-<fromBuild|sha>-<path>`, one group per file. A file Microsoft drops
+leaves the loader's manifest and is never sampled, so a 404 on a listed file is usually an incident of that
+file; per-file keys keep two unrelated removals from one stable build off a shared page (and severity).
+Keys created before 2026-10-15 lack the path. On the site one Microsoft release = one page
 `/rollouts/<channel>/<group>` with the share per host file. Group numbers come only from `listGroups`
-([`web.md`](web.md)).
+([`web.md`](web.md)). Group keys are internal: the site names a group by its build, or "Files removed" /
+"Unversioned change" (`groupTitle` in `frontend/lib/format.js`).
+
+A group is **confirmed** once any of its files completed or was sighted in `CONFIRM_RUNS` (2) runs. Only
+confirmed groups alert and appear on the site ([`alerts.md`](alerts.md)).

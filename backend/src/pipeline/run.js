@@ -16,11 +16,19 @@ const log = (channel, msg) => console.log(`[${new Date().toISOString()}] [${chan
 /** Abandoned rollouts younger than this are still matched, so a version that comes back revives its rollout. */
 const REVIVE_WINDOW_MS = 30 * 24 * 3600_000;
 
-/** Rollouts of the same Microsoft build are shown together; files without a stamp group by content. */
-export function groupKey({ toBuild, toSha, fromBuild, fromSha }) {
+/**
+ * Rollouts of the same Microsoft build are shown together; files without a stamp group by content.
+ * A removal is grouped per file: a file Microsoft drops leaves the loader's manifest and is never sampled,
+ * so a 404 on a listed file is usually a CDN incident of that one file, and two unrelated ones must not
+ * share a page (and its severity) just because they left the same stable build.
+ */
+export function groupKey({ toBuild, toSha, fromBuild, fromSha, path }) {
   if (toBuild) return toBuild;
   if (toSha) return `sha-${toSha.slice(0, 12)}`;
-  return `removed-${fromBuild ?? fromSha?.slice(0, 12) ?? "unknown"}`;
+  const from = fromBuild ?? fromSha?.slice(0, 12) ?? "unknown";
+  // Group keys go into URLs (GROUP_RE in web/server.js): word characters, dots and dashes, at most 80.
+  const file = (path ?? "file").replace(/[^\w.-]+/g, "_").slice(0, 50);
+  return `removed-${from}-${file}`;
 }
 
 /**
@@ -217,7 +225,7 @@ export async function runChannel(channel, archive) {
         toSha: c.toSha,
         toBuild: c.toBuild,
         toLastModified: c.toLastModified,
-        group: groupKey(c),
+        group: groupKey({ ...c, path: entry.path }),
         status: "rolling",
         share: c.share,
         recentShare: c.share,

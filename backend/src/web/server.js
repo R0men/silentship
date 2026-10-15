@@ -3,11 +3,12 @@ import Fastify from "fastify";
 import { config } from "../config.js";
 import { db } from "../db.js";
 import { SEVERITY_RANK } from "../analysis/diff.js";
-import { confirmEmail } from "../notify/email-templates.js";
+import { alreadySubscribedEmail, confirmEmail } from "../notify/email-templates.js";
 import { sendEmail } from "../notify/senders.js";
 import { esc } from "../util/html.js";
 import { crawlerHealth, getGroup, listGroups, overview, sitemapGroups } from "./queries.js";
 import { createLiveFeed } from "./live.js";
+import { actionPage } from "./action-page.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CHANNELS = new Set(["prod", "beta"]);
@@ -115,61 +116,102 @@ export async function buildServer() {
       };
       await subscribers.insertOne(sub);
     } else {
-      // Anyone can submit any address, so a previously unsubscribed one must confirm again,
-      // and a confirmed one keeps its settings.
+      // Anyone can submit any address, so a previously unsubscribed one must confirm again, and a confirmed
+      // one keeps its settings: a channel it does not have yet waits in pendingChannels for the click.
+      const addsChannel = channels.some((c) => !(existing.channels ?? []).includes(c));
       const update = existing.unsubscribedAt
         ? { channels, unsubscribedAt: null, confirmedAt: null }
-        : existing.confirmedAt
-          ? {}
-          : { channels };
+        : !existing.confirmedAt
+          ? { channels }
+          : addsChannel
+            ? { pendingChannels: [...new Set([...(existing.channels ?? []), ...channels])] }
+            : {};
       sub = { ...existing, ...update };
       if (Object.keys(update).length) await subscribers.updateOne({ _id: existing._id }, { $set: update });
     }
-    if (!sub.confirmedAt) {
-      // At most 3 confirmation emails per address per day, so the form cannot be used to flood an inbox.
-      const dayAgo = Date.now() - 24 * 3600_000;
-      const recent = (sub.confirmationsSent ?? []).filter((t) => new Date(t).getTime() > dayAgo);
-      if (recent.length < 3) {
-        if (!allowConfirmationEmail("global")) return reply.code(429).send({ error: "too_many_requests" });
-        const link = `${config.publicUrl}/confirm?token=${sub.token}`;
-        await sendEmail({ to: email, ...confirmEmail({ link, channels: sub.channels ?? channels }) });
-        await subscribers.updateOne({ email }, { $set: { confirmationsSent: [...recent, new Date()] } });
-      }
+    // Every submit gets an email, so the form's "check your inbox" is true and the reply leaks nothing.
+    // At most 3 per address per day, so the form cannot be used to flood an inbox.
+    const dayAgo = Date.now() - 24 * 3600_000;
+    const recent = (sub.confirmationsSent ?? []).filter((t) => new Date(t).getTime() > dayAgo);
+    if (recent.length < 3) {
+      if (!allowConfirmationEmail("global")) return reply.code(429).send({ error: "too_many_requests" });
+      const link = `${config.publicUrl}/confirm?token=${sub.token}`;
+      const message =
+        !sub.confirmedAt || sub.pendingChannels
+          ? confirmEmail({ link, channels: sub.pendingChannels ?? sub.channels ?? channels })
+          : alreadySubscribedEmail({
+              channels: sub.channels,
+              unsubscribe: `${config.publicUrl}/unsubscribe?token=${sub.token}`,
+            });
+      await sendEmail({ to: email, ...message });
+      await subscribers.updateOne({ email }, { $set: { confirmationsSent: [...recent, new Date()] } });
     }
     // Same answer whether or not the address was already known, so the form does not leak subscribers.
     return { ok: true };
   });
 
-  app.get("/confirm", async (req, reply) => {
-    const { subscribers } = await db();
+  // Email links: GET only shows a page with a button (mail scanners open every link), POST changes state.
+  async function subscriberByToken(req) {
     const token = typeof req.query.token === "string" ? req.query.token : null;
-    const sub = token ? await subscribers.findOne({ token }) : null;
-    if (!sub) return reply.redirect(`${config.publicUrl}/?notice=invalid-link`);
+    if (!token) return null;
+    const { subscribers } = await db();
+    return subscribers.findOne({ token });
+  }
+  const notice = (reply, name) => reply.redirect(`${config.publicUrl}/?notice=${name}`, 303);
+  const page = (reply, args) => reply.type("text/html; charset=utf-8").header("cache-control", "no-store").send(actionPage(args));
+
+  app.get("/confirm", async (req, reply) => {
+    const sub = await subscriberByToken(req);
+    if (!sub) return notice(reply, "invalid-link");
+    if (sub.confirmedAt && !sub.unsubscribedAt && !sub.pendingChannels) return notice(reply, "confirmed");
+    const channels = sub.pendingChannels ?? sub.channels ?? ["prod"];
+    return page(reply, {
+      title: "Confirm your subscription",
+      text: `Alerts about Office.js rollouts on the ${channels.includes("beta") ? "production and beta channels" : "production channel"} will go to ${sub.email}.`,
+      button: "Confirm",
+      action: `/confirm?token=${encodeURIComponent(sub.token)}`,
+    });
+  });
+
+  app.post("/confirm", async (req, reply) => {
+    const sub = await subscriberByToken(req);
+    if (!sub) return notice(reply, "invalid-link");
+    const { subscribers } = await db();
     await subscribers.updateOne(
       { _id: sub._id },
-      { $set: { confirmedAt: sub.confirmedAt ?? new Date(), unsubscribedAt: null } },
+      {
+        $set: { confirmedAt: sub.confirmedAt ?? new Date(), unsubscribedAt: null, channels: sub.pendingChannels ?? sub.channels },
+        $unset: { pendingChannels: "" },
+      },
     );
-    return reply.redirect(`${config.publicUrl}/?notice=confirmed`);
+    return notice(reply, "confirmed");
   });
 
   app.get("/unsubscribe", async (req, reply) => {
-    const { subscribers } = await db();
-    const token = typeof req.query.token === "string" ? req.query.token : null;
-    const sub = token ? await subscribers.findOne({ token }) : null;
-    if (!sub) return reply.redirect(`${config.publicUrl}/?notice=invalid-link`);
-    await subscribers.updateOne({ _id: sub._id }, { $set: { unsubscribedAt: new Date() } });
-    return reply.redirect(`${config.publicUrl}/?notice=unsubscribed`);
+    const sub = await subscriberByToken(req);
+    if (!sub) return notice(reply, "invalid-link");
+    if (sub.unsubscribedAt) return notice(reply, "unsubscribed");
+    return page(reply, {
+      title: "Unsubscribe",
+      text: `Stop Office.js alerts to ${sub.email}.`,
+      button: "Unsubscribe",
+      action: `/unsubscribe?token=${encodeURIComponent(sub.token)}`,
+    });
   });
 
-  // RFC 8058 one-click unsubscribe: mail clients POST "List-Unsubscribe=One-Click" to the header URL.
   app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string" }, (_req, body, done) =>
     done(null, body),
   );
+  // The button on the page above, and RFC 8058 one-click unsubscribe: mail clients POST
+  // "List-Unsubscribe=One-Click" to the header URL and expect a plain 200, not a redirect.
   app.post("/unsubscribe", async (req, reply) => {
-    const { subscribers } = await db();
-    const token = typeof req.query.token === "string" ? req.query.token : null;
-    if (token) await subscribers.updateOne({ token }, { $set: { unsubscribedAt: new Date() } });
-    return reply.code(200).send({ ok: true });
+    const sub = await subscriberByToken(req);
+    if (sub) {
+      const { subscribers } = await db();
+      await subscribers.updateOne({ _id: sub._id }, { $set: { unsubscribedAt: sub.unsubscribedAt ?? new Date() } });
+    }
+    if (String(req.body ?? "").includes("List-Unsubscribe=One-Click")) return reply.code(200).send({ ok: true });
+    return notice(reply, sub ? "unsubscribed" : "invalid-link");
   });
 
   // Live updates (Server-Sent Events): a fresh snapshot whenever a crawl starts or finishes.

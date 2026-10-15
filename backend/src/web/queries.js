@@ -2,6 +2,7 @@ import { config } from "../config.js";
 import { db } from "../db.js";
 import { SEVERITY_RANK } from "../analysis/diff.js";
 import { LOADER_PATH } from "../crawler/manifest.js";
+import { CONFIRM_RUNS } from "../pipeline/rollouts.js";
 
 /**
  * Read models for the site. Storage is one `rollouts` doc per file; the site shows one entry per
@@ -19,6 +20,30 @@ const sevRank = {
   },
 };
 const countStatus = (status) => ({ $sum: { $cond: [{ $eq: ["$status", status] }, 1, 0] } });
+
+/**
+ * groupConfirmed (notify/alerts.js) as an aggregate: 1 when any file of the group completed or was sighted
+ * in CONFIRM_RUNS runs. Unconfirmed groups (one-run CDN incidents) are not shown anywhere on the site.
+ */
+const CONFIRMED = {
+  $max: {
+    $cond: [
+      {
+        $or: [
+          { $eq: ["$status", "complete"] },
+          {
+            $gte: [
+              { $size: { $filter: { input: { $ifNull: ["$history", []] }, cond: { $gt: ["$$this.share", 0] } } } },
+              CONFIRM_RUNS,
+            ],
+          },
+        ],
+      },
+      1,
+      0,
+    ],
+  },
+};
 
 function groupStatus(g) {
   if (g.rolling > 0) return "rolling";
@@ -80,19 +105,20 @@ const GROUP_STAGE = {
     rolling: countStatus("rolling"),
     complete: countStatus("complete"),
     abandoned: countStatus("abandoned"),
+    confirmed: CONFIRMED,
   },
 };
 
 /**
- * Rollout groups, newest first. `before` is a firstSeenAt cursor for paging; `activeOnly` keeps groups
- * with at least one file still rolling. The only place group numbers are computed.
+ * Confirmed rollout groups, newest first. `before` is a firstSeenAt cursor for paging; `activeOnly` keeps
+ * groups with at least one file still rolling. The only place group numbers are computed.
  */
 export async function listGroups({ channel, severity, before, activeOnly = false, group, limit = 30 }) {
   const { rollouts } = await db();
   const match = { region: config.region };
   if (channel) match.channel = channel;
   if (group) match.group = group;
-  const post = {};
+  const post = { confirmed: 1 };
   if (activeOnly) post.rolling = { $gt: 0 };
   if (severity) post.sevRank = SEVERITY_RANK[severity];
   if (before) post.firstSeenAt = { $lt: before };
@@ -116,8 +142,10 @@ export async function sitemapGroups() {
           _id: { channel: "$channel", group: "$group" },
           lastSeenAt: { $max: "$lastSeenAt" },
           completedAt: { $max: "$completedAt" },
+          confirmed: CONFIRMED,
         },
       },
+      { $match: { confirmed: 1 } },
       { $sort: { lastSeenAt: -1 } },
       { $limit: 50_000 },
     ])
@@ -181,9 +209,9 @@ function groupApiChanges(rows) {
 
 export async function getGroup(channel, group) {
   const { rollouts, apiChanges } = await db();
-  const items = await rollouts.find({ channel, region: config.region, group }).sort({ path: 1 }).toArray();
-  if (items.length === 0) return null;
   const [summary] = await listGroups({ channel, group, limit: 1 });
+  if (!summary) return null; // unknown or unconfirmed
+  const items = await rollouts.find({ channel, region: config.region, group }).sort({ path: 1 }).toArray();
   const changes = await apiChanges.find({ rolloutId: { $in: items.map((r) => r._id) } }).toArray();
   return {
     ...summary,
@@ -213,18 +241,15 @@ export async function getGroup(channel, group) {
 
 /** Per channel: stable loader build, rollouts in flight, crawl health. */
 export async function overview() {
-  const { runs, fileStates, rollouts } = await db();
+  const { runs, fileStates } = await db();
   const channels = [];
   for (const channel of config.channels) {
-    const [lastRun, loader, active] = await Promise.all([
+    const [lastRun, loader, active, [lastChange]] = await Promise.all([
       runs.findOne({ channel, region: config.region }, { sort: { startedAt: -1 } }),
       fileStates.findOne({ channel, region: config.region, path: LOADER_PATH }),
       listGroups({ channel, activeOnly: true, limit: 10 }),
+      listGroups({ channel, limit: 1 }),
     ]);
-    const lastChange = await rollouts.findOne(
-      { channel, region: config.region },
-      { sort: { firstSeenAt: -1 }, projection: { firstSeenAt: 1 } },
-    );
     channels.push({
       channel,
       build: loader?.stableBuild ?? lastRun?.build ?? null,
@@ -238,10 +263,10 @@ export async function overview() {
   const since = new Date(Date.now() - 30 * 24 * 3600_000);
   const recent = await listGroups({ before: null, limit: 500 });
   const last30 = recent.filter((g) => new Date(g.firstSeenAt) >= since);
-  return {
-    channels,
-    stats: { rollouts30d: last30.length, high30d: last30.filter((g) => g.severity === "high").length },
-  };
+  // A build reaching prod and beta is two groups but one build; removals and unstamped changes are no build.
+  const builds = new Set(last30.filter((g) => g.toBuild).map((g) => g.toBuild));
+  const high = new Set(last30.filter((g) => g.severity === "high").map((g) => g.toBuild ?? `${g.channel}/${g.group}`));
+  return { channels, stats: { rollouts30d: builds.size, high30d: high.size } };
 }
 
 /**

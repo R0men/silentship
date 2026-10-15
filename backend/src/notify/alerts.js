@@ -3,6 +3,7 @@ import { db } from "../db.js";
 import { maxSeverity, SEVERITY_RANK } from "../analysis/diff.js";
 import { matchingChanges } from "../analysis/watchlist.js";
 import { hostTypeOf } from "../crawler/manifest.js";
+import { CONFIRM_RUNS } from "../pipeline/rollouts.js";
 import { listGroups } from "../web/queries.js";
 import { alertEmail, confirmEmail, rollbackEmail } from "./email-templates.js";
 import { postSlack, sendEmail } from "./senders.js";
@@ -44,13 +45,9 @@ function summarizeApi(changes, limit = 25) {
 const pct = (share) => `${Math.round(share * 100)}%`;
 
 /**
- * Runs a version must be sighted in before it may alert as a rollout. A single run of 404s or of a new body
- * is a short CDN incident, not a release (2026-10-15: five of eight edges returned 404 for
- * onenote-winrt-16.00.js in one run, then served it again). Such data is kept: see docs/tasks/PLAN.md.
+ * A group may alert once any of its files has been sighted in CONFIRM_RUNS runs, or has completed.
+ * listGroups applies the same rule in its aggregate (`confirmed`), so the site shows exactly these groups.
  */
-export const CONFIRM_RUNS = 2;
-
-/** A group may alert once any of its files has been sighted in CONFIRM_RUNS runs, or has completed. */
 export function groupConfirmed(rollouts) {
   return rollouts.some(
     (r) => r.status === "complete" || (r.history ?? []).filter((h) => h.share > 0).length >= CONFIRM_RUNS,
@@ -108,10 +105,6 @@ async function findPending() {
   return pending.map((r) => ({ ...r, apiChanges: rows.filter((c) => c.rolloutId.equals(r._id)) }));
 }
 
-/**
- * A Microsoft release reaches the host files one by one over several crawls. Alerts wait until a channel
- * has had no new rollout for `quietMinutes`, then go out as one message per target build.
- */
 /** Unconfirmed sign-ups are deleted after 30 days; we keep no address the owner did not confirm. */
 export async function pruneUnconfirmed(now = new Date()) {
   const { subscribers } = await db();
@@ -122,6 +115,12 @@ export async function pruneUnconfirmed(now = new Date()) {
   return deletedCount;
 }
 
+/**
+ * A Microsoft release reaches the host files one by one over several crawls. Alerts wait until a channel
+ * has had no new rollout for `quietMinutes`, then are queued as one message per target build; files of an
+ * already alerted build only produce an "update" with the API changes not sent yet. flushDeliveries sends
+ * the queue and retries failures on later crawls.
+ */
 export async function notifyPending(quietMinutes = config.alertQuietMinutes, now = new Date()) {
   const byChannel = new Map();
   for (const r of await findPending()) byChannel.set(r.channel, [...(byChannel.get(r.channel) ?? []), r]);
@@ -138,6 +137,61 @@ export async function notifyPending(quietMinutes = config.alertQuietMinutes, now
   }
 
   for (const { channel, group, items } of await findRollbacks(now)) await notifyRollback(channel, group, items);
+  await flushDeliveries(now);
+}
+
+/** Attempts per queued message, one per crawl: a few hours of a Brevo or Slack outage lose nothing. */
+export const MAX_ATTEMPTS = 24;
+
+/** Queues messages; one already queued under the same key for the same recipient is skipped (a re-run). */
+async function enqueue(messages) {
+  if (messages.length === 0) return;
+  const { deliveries } = await db();
+  const createdAt = new Date();
+  const docs = messages.map((m) => ({ ...m, createdAt, sentAt: null, failedAt: null, attempts: 0, lastError: null }));
+  try {
+    await deliveries.insertMany(docs, { ordered: false });
+  } catch (err) {
+    if (!(err.writeErrors ?? [err]).every((e) => e.code === 11000)) throw err;
+  }
+}
+
+/**
+ * Sends every queued message. A failure stays queued for the next crawl until MAX_ATTEMPTS; an email to a
+ * subscriber who unsubscribed meanwhile is dropped.
+ */
+export async function flushDeliveries(now = new Date()) {
+  const { deliveries, subscribers } = await db();
+  const queue = await deliveries.find({ sentAt: null, failedAt: null }, { sort: { createdAt: 1 } }).toArray();
+  const result = { sent: 0, failed: 0, dropped: 0 };
+  for (const d of queue) {
+    if (d.transport === "email") {
+      const sub = await subscribers.findOne({ _id: d.subscriberId });
+      if (!sub?.confirmedAt || sub.unsubscribedAt) {
+        await deliveries.updateOne({ _id: d._id }, { $set: { failedAt: now, lastError: "subscriber inactive" } });
+        result.dropped++;
+        continue;
+      }
+    }
+    try {
+      if (d.transport === "slack") await postSlack(d.message.text);
+      else await sendEmail({ to: d.to, ...d.message });
+      await deliveries.updateOne({ _id: d._id }, { $set: { sentAt: now }, $inc: { attempts: 1 } });
+      result.sent++;
+    } catch (err) {
+      const attempts = d.attempts + 1;
+      const giveUp = attempts >= MAX_ATTEMPTS;
+      await deliveries.updateOne(
+        { _id: d._id },
+        { $set: { attempts, lastError: String(err).slice(0, 500), failedAt: giveUp ? now : null } },
+      );
+      console.error(
+        `${d.transport} delivery ${d.key} failed (attempt ${attempts}/${MAX_ATTEMPTS}${giveUp ? ", giving up" : ""}): ${String(err)}`,
+      );
+      result.failed++;
+    }
+  }
+  return result;
 }
 
 /** Everything an alert about one rollout group needs, computed once for Slack and every subscriber. */
@@ -188,13 +242,17 @@ async function groupContext(channel, group, rollouts) {
   };
 }
 
-/** Subject, text and HTML of one subscriber's alert. */
-function renderAlert(ctx, { changes, severity, unsubscribe, watched }) {
+/** Subject, text and HTML of one subscriber's alert; `update`: a follow-up carrying only new API changes. */
+function renderAlert(ctx, { changes, severity, unsubscribe, watched, update = false }) {
   const entries = apiEntries(changes);
   const limit = 25;
+  const what = ctx.toBuild ? `build ${ctx.toBuild} rolling out` : ctx.what;
+  const subject = `[${severity}] Office.js ${ctx.channel}: ${what}${update ? ` — update, ${changes.length} new API change(s)` : ""}`;
   return {
-    subject: `[${severity}] Office.js ${ctx.channel}: ${ctx.toBuild ? `build ${ctx.toBuild} rolling out` : ctx.what}`,
-    text: [ctx.header, "", ...summarizeApi(changes, limit), "", ctx.url, "", `Unsubscribe: ${unsubscribe}`].join("\n"),
+    subject,
+    text: [update ? subject : ctx.header, "", ...summarizeApi(changes, limit), "", ctx.url, "", `Unsubscribe: ${unsubscribe}`].join(
+      "\n",
+    ),
     html: alertEmail({
       channel: ctx.channel,
       title: ctx.title,
@@ -209,49 +267,91 @@ function renderAlert(ctx, { changes, severity, unsubscribe, watched }) {
       url: ctx.url,
       unsubscribe,
       watched,
+      update,
     }),
   };
 }
 
+const unsubscribeUrl = (sub) => `${config.publicUrl}/unsubscribe?token=${sub.token}`;
+// Gmail/Yahoo bulk-sender rules: one-click unsubscribe (RFC 8058).
+const unsubscribeHeaders = (url) => ({ "List-Unsubscribe": `<${url}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" });
+const activeSubscribers = async (channel) =>
+  (await db()).subscribers.find({ confirmedAt: { $ne: null }, unsubscribedAt: null, channels: channel }).toArray();
+const watchesOf = (sub) => (sub.watchItems ?? []).map((w) => ({ pattern: w.pattern, hosts: w.hosts ?? [] }));
+
+/** `changes` without those already in `sent`, by API path and kind (the hosts are detail, not news). */
+export function newChanges(changes, sent) {
+  const seen = new Set(sent.map((c) => `${c.path}\u0000${c.kind}`));
+  return changes.filter((c) => !seen.has(`${c.path}\u0000${c.kind}`));
+}
+
+/** API changes of the group's files that were alerted on before, or null if none were. */
+async function alertedChanges(channel, group) {
+  const { rollouts, apiChanges } = await db();
+  const prior = await rollouts
+    .find({ channel, group, region: config.region, notifiedAt: { $ne: null } }, { projection: { _id: 1 } })
+    .toArray();
+  if (prior.length === 0) return null;
+  const rows = await apiChanges.find({ rolloutId: { $in: prior.map((r) => r._id) } }).toArray();
+  return rows.map((c) => ({ path: c.path, kind: c.kind, severity: c.severity, file: c.file, hostType: hostTypeOf(c.file) }));
+}
+
 async function notifyGroup(channel, group, rollouts) {
   const ctx = await groupContext(channel, group, rollouts);
+  // A build reaches the files over hours. The first alert covers what is there; later batches of the same
+  // build are updates carrying only API changes not sent yet, and are skipped when there are none.
+  const prior = await alertedChanges(channel, group);
+  const key = `rollout:${channel}:${group}:${rollouts.map((r) => String(r._id)).sort()[0]}`;
+  const base = { key, kind: "rollout", channel, group };
+  const messages = [];
 
-  try {
-    await postSlack([ctx.header, ...summarizeApi(ctx.changes, 15), ctx.url].join("\n"));
-  } catch (err) {
-    console.error(`Slack notification failed for ${channel}/${group}: ${String(err)}`);
+  const slackChanges = prior ? newChanges(ctx.changes, prior) : ctx.changes;
+  if (!prior || slackChanges.length) {
+    const severity = prior ? maxSeverity(slackChanges.map((c) => c.severity)) : ctx.severity;
+    const { text } = renderAlert(ctx, { changes: slackChanges, severity, unsubscribe: "", watched: false, update: !!prior });
+    const head = text.split("\n")[0];
+    messages.push({ ...base, transport: "slack", subscriberId: null, message: { text: [head, ...summarizeApi(slackChanges, 15), ctx.url].join("\n") } });
   }
 
-  const { rollouts: rolloutCol, subscribers: subscriberCol } = await db();
-  const subscribers = await subscriberCol
-    .find({ confirmedAt: { $ne: null }, unsubscribedAt: null, channels: channel })
-    .toArray();
-
-  for (const sub of subscribers) {
-    const watches = (sub.watchItems ?? []).map((w) => ({ pattern: w.pattern, hosts: w.hosts ?? [] }));
+  const { deliveries, rollouts: rolloutCol } = await db();
+  const alerted = new Set(
+    (await deliveries.distinct("subscriberId", { kind: "rollout", channel, group, transport: "email" })).map(String),
+  );
+  for (const sub of await activeSubscribers(channel)) {
+    const watches = watchesOf(sub);
     const relevant = matchingChanges(watches, ctx.changes);
-    // With a watchlist only matching API changes count; without one, any rollout that changed the API.
-    if (watches.length && relevant.length === 0) continue;
-    if (!watches.length && !emailWorthy(ctx)) continue;
-    const subSeverity = watches.length ? maxSeverity(relevant.map((c) => c.severity)) : ctx.severity;
-    if (SEVERITY_RANK[subSeverity] < SEVERITY_RANK[sub.minSeverity ?? "low"]) continue;
-
-    const unsubscribe = `${config.publicUrl}/unsubscribe?token=${sub.token}`;
-    try {
-      await sendEmail({
-        to: sub.email,
-        // Gmail/Yahoo bulk-sender rules: one-click unsubscribe (RFC 8058).
-        headers: {
-          "List-Unsubscribe": `<${unsubscribe}>`,
-          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-        },
-        ...renderAlert(ctx, { changes: relevant, severity: subSeverity, unsubscribe, watched: watches.length > 0 }),
-      });
-    } catch (err) {
-      console.error(`Email to subscriber ${sub._id} failed: ${String(err)}`);
+    // "Update" in the subject only for those who got the first email; once the group was alerted on, every
+    // later email carries only changes not sent before (also to someone who subscribed in between, and for
+    // groups alerted before the delivery queue existed, which have no rows to tell who got what).
+    const update = alerted.has(String(sub._id));
+    let changes = relevant;
+    let severity;
+    if (prior) {
+      changes = newChanges(relevant, matchingChanges(watches, prior));
+      if (changes.length === 0) continue;
+      severity = maxSeverity(changes.map((c) => c.severity));
+    } else {
+      // With a watchlist only matching API changes count; without one, any rollout that changed the API.
+      if (watches.length && relevant.length === 0) continue;
+      if (!watches.length && !emailWorthy(ctx)) continue;
+      severity = watches.length ? maxSeverity(relevant.map((c) => c.severity)) : ctx.severity;
     }
+    if (SEVERITY_RANK[severity] < SEVERITY_RANK[sub.minSeverity ?? "low"]) continue;
+
+    const unsubscribe = unsubscribeUrl(sub);
+    messages.push({
+      ...base,
+      transport: "email",
+      subscriberId: sub._id,
+      to: sub.email,
+      message: {
+        headers: unsubscribeHeaders(unsubscribe),
+        ...renderAlert(ctx, { changes, severity, unsubscribe, watched: watches.length > 0, update }),
+      },
+    });
   }
 
+  await enqueue(messages);
   await rolloutCol.updateMany({ _id: { $in: rollouts.map((r) => r._id) } }, { $set: { notifiedAt: new Date() } });
 }
 
@@ -291,35 +391,25 @@ function renderRollback(ctx, items, { changes, unsubscribe, watched }) {
  */
 async function notifyRollback(channel, group, items) {
   const ctx = await groupContext(channel, group, items);
-  try {
-    await postSlack([renderRollback(ctx, items, { changes: ctx.changes, unsubscribe: "" }).line, ctx.url].join("\n"));
-  } catch (err) {
-    console.error(`Slack rollback notification failed for ${channel}/${group}: ${String(err)}`);
-  }
-  const { rollouts: rolloutCol, subscribers: subscriberCol } = await db();
-  const subscribers = await subscriberCol
-    .find({ confirmedAt: { $ne: null }, unsubscribedAt: null, channels: channel })
-    .toArray();
-  for (const sub of subscribers) {
-    const watches = (sub.watchItems ?? []).map((w) => ({ pattern: w.pattern, hosts: w.hosts ?? [] }));
+  const base = { key: `rollback:${channel}:${group}`, kind: "rollback", channel, group };
+  const { line } = renderRollback(ctx, items, { changes: ctx.changes, unsubscribe: "" });
+  const messages = [{ ...base, transport: "slack", subscriberId: null, message: { text: [line, ctx.url].join("\n") } }];
+  for (const sub of await activeSubscribers(channel)) {
+    const watches = watchesOf(sub);
     const relevant = matchingChanges(watches, ctx.changes);
     if (watches.length && relevant.length === 0) continue;
-    const unsubscribe = `${config.publicUrl}/unsubscribe?token=${sub.token}`;
-    const { line, ...email } = renderRollback(ctx, items, {
-      changes: relevant,
-      unsubscribe,
-      watched: watches.length > 0,
+    const unsubscribe = unsubscribeUrl(sub);
+    const { line: _line, ...email } = renderRollback(ctx, items, { changes: relevant, unsubscribe, watched: watches.length > 0 });
+    messages.push({
+      ...base,
+      transport: "email",
+      subscriberId: sub._id,
+      to: sub.email,
+      message: { headers: unsubscribeHeaders(unsubscribe), ...email },
     });
-    try {
-      await sendEmail({
-        to: sub.email,
-        headers: { "List-Unsubscribe": `<${unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
-        ...email,
-      });
-    } catch (err) {
-      console.error(`Rollback email to subscriber ${sub._id} failed: ${String(err)}`);
-    }
   }
+  await enqueue(messages);
+  const { rollouts: rolloutCol } = await db();
   await rolloutCol.updateMany({ _id: { $in: items.map((r) => r._id) } }, { $set: { rollbackNotifiedAt: new Date() } });
 }
 

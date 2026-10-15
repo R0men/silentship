@@ -37,7 +37,7 @@ path"; canonical URLs; a `<title>` with the method and host; entries in `app/sit
 For an add-in developer a run where most edges answer 404 for a host file is a real outage, however short:
 on 2026-10-15 at 16:16 UTC five of eight edges returned 404 for `onenote-winrt-16.00.js` (OneNote on
 Windows), and the next run served it again. Its per-run samples expire around 2027-01-13 (TTL). Today such a sighting is a rollout that is never confirmed and
-is abandoned after 24 h without an alert (`docs/architecture/alerts.md`). Plan:
+is abandoned after 24 h without an alert and is hidden on the site (`docs/architecture/alerts.md`). Plan:
 
 - Detect it from data we already have: a removal (or a new sha) seen in exactly one run, or 404 / 5xx on
   ≥ 50% of a file's samples while the stable version keeps being served.

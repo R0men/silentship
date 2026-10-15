@@ -25,3 +25,9 @@
   - `[Style]` One product name — silentship; launch banner removed
   - `[Docs]` Documentation restructured and translated to English
   - `[Bug Fix]` Rollout alerts need confirmation and API changes; rollbacks always alert
+  - `[Bug Fix]` The site shows only confirmed rollouts; counters count builds
+  - `[Bug Fix]` Removals are grouped per file
+  - `[Bug Fix]` Email links no longer change a subscription on GET
+  - `[Bug Fix]` Alerts are queued and retried; one alert per build, then updates
+  - `[Bug Fix]` Subscribing an address that is already subscribed
+  - `[Bug Fix]` Size limit on CDN responses

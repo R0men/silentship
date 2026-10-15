@@ -154,6 +154,37 @@ export function confirmEmail({ link, channels }) {
   };
 }
 
+/**
+ * Sent when a confirmed address is submitted again with nothing new to confirm: the form always says
+ * "check your inbox" (it must not reveal who is subscribed), so the inbox has to get something.
+ */
+export function alreadySubscribedEmail({ channels, unsubscribe }) {
+  const watching = channels.includes("beta") ? "production and beta channels" : "production channel";
+  const body = html`
+    <h1 style="margin:0 0 12px;font:600 26px/1.25 ${SANS};color:${C.text};letter-spacing:-0.02em;">
+      You're already subscribed
+    </h1>
+    <p style="margin:0 0 28px;color:${C.muted};">
+      This address already gets silentship alerts for the Office.js ${watching}. Nothing to do — the next alert
+      arrives when Microsoft rolls out a change.
+    </p>
+    <p style="margin:0;font:400 13px/1.6 ${SANS};color:${C.faint};">
+      Want to stop them?
+      <a href="${unsubscribe}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a>.
+    </p>
+  `;
+  return {
+    subject: "You're already subscribed to silentship alerts",
+    text: `This address already gets silentship alerts for the Office.js ${watching}. Nothing to do.\n\nUnsubscribe: ${unsubscribe}`,
+    html: layout({
+      preheader: "This address already gets Office.js CDN change alerts.",
+      body,
+      footer:
+        "You received this because someone entered this address at silentship.dev. If it was not you, ignore this email — nothing changed.",
+    }),
+  };
+}
+
 function severityLabel(severity) {
   return html`<span
     style="font:600 11px/1 ${SANS};letter-spacing:0.08em;text-transform:uppercase;color:${SEVERITY_COLOR[severity]};"
@@ -300,11 +331,12 @@ export function alertEmail({
   url,
   unsubscribe,
   watched,
+  update = false,
 }) {
   const channelName = CHANNEL_LABEL[channel] ?? channel;
   const changesBlock = entries.length
     ? html`<h2 style="margin:36px 0 8px;font:600 13px/1 ${SANS};color:${C.muted};letter-spacing:0.02em;">
-          ${watched ? "Changes matching your watchlist" : "API changes"}
+          ${update ? "New since the last alert — " : ""}${watched ? "Changes matching your watchlist" : "API changes"}
         </h2>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           ${entries.map(changeRow)}
@@ -323,8 +355,10 @@ export function alertEmail({
     </p>
     <h1 style="margin:0 0 6px;font:600 28px/1.2 ${MONO};color:${C.text};letter-spacing:-0.02em;">${title}</h1>
     <p style="margin:0 0 28px;color:${C.muted};">
-      ${status === "complete" ? "Microsoft has rolled out" : "Microsoft is rolling out"} a new Office.js build on the
-      ${channelName} CDN${fromBuilds.length ? html`, replacing ${fromBuilds.join(", ")}` : ""}.
+      ${update
+        ? "An update on this rollout: more host files have reached the new build and brought API changes you have not been sent yet."
+        : html`${status === "complete" ? "Microsoft has rolled out" : "Microsoft is rolling out"} a new Office.js build on
+          the ${channelName} CDN${fromBuilds.length ? html`, replacing ${fromBuilds.join(", ")}` : ""}.`}
     </p>
 
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">

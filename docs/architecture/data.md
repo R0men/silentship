@@ -14,7 +14,8 @@ Official `mongodb` driver, no ORM. Database name: `MONGODB_DB`, else the path of
 | `rollouts` | channel, region, path, role, hostType/Platform, fromSha/fromBuild → toSha/toBuild, group, status, share, recentShare, peakShare, history[{at, share}] (up to 300 points), firstSeenAt, lastSeenAt, completedAt, severity, apiChangeCount, apiDiffNote, notifiedAt, rollbackNotifiedAt | `{channel, region, path, status}`, `{channel, group}`, `{firstSeenAt}`, `{notifiedAt}` |
 | `apiChanges` | One row per changed API path in a rollout (there can be thousands): rolloutId, file, path, kind, severity, apiStatus, apiSet, before/after | `{rolloutId}`, `{path}` |
 | `snapshots` | Per file per run: sample counts, variants `{sha, build, count, lastModified}`, edge IPs, bytes | `{channel, region, path, fetchedAt}`, TTL 90 days |
-| `subscribers` | email, token, channels[], minSeverity, `watchItems[]`, createdAt/confirmedAt/unsubscribedAt, confirmationsSent[] | unique `{email}`, `{token}` |
+| `subscribers` | email, token, channels[], pendingChannels[] (a channel added by a confirmed address, until the click), minSeverity, `watchItems[]`, createdAt/confirmedAt/unsubscribedAt, confirmationsSent[] (any subscribe-form email) | unique `{email}`, `{token}` |
+| `deliveries` | Alert outbox: key (`rollout:<channel>:<group>:<batch>` / `rollback:…`), kind, channel, group, transport (`email`/`slack`), subscriberId, to, rendered message, createdAt, sentAt, attempts, lastError, failedAt ([`alerts.md`](alerts.md)) | unique `{key, transport, subscriberId}`, `{sentAt, failedAt, createdAt}`, `{kind, channel, group, transport}`, TTL 90 days |
 
 No multi-document transactions (they need a replica set). File states are written after rollouts, so a
 failure mid-run leads to a retry, not to data loss.

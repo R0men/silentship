@@ -72,6 +72,18 @@ describe("html", () => {
   });
 });
 
+describe("rollout groups", async () => {
+  const { groupKey } = await import("../src/pipeline/run.js");
+
+  it("groups a build by its stamp and a removal per file", () => {
+    expect(groupKey({ toBuild: "16.0.2", toSha: "b" })).toBe("16.0.2");
+    const gone = { toBuild: null, toSha: null, fromBuild: "16.0.1" };
+    expect(groupKey({ ...gone, path: "onenote-winrt-16.00.js" })).toBe("removed-16.0.1-onenote-winrt-16.00.js");
+    expect(groupKey({ ...gone, path: "en-us/excel_strings.js" })).toBe("removed-16.0.1-en-us_excel_strings.js");
+    expect(groupKey({ ...gone, path: "x".repeat(200) })).toMatch(/^[\w.-]{1,80}$/);
+  });
+});
+
 describe("alert rules", async () => {
   const { emailWorthy, groupConfirmed, groupRolledBack } = await import("../src/notify/alerts.js");
   const at = (i) => new Date(Date.UTC(2026, 9, 15, 16, i * 10));

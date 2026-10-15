@@ -27,6 +27,9 @@ After a run, `data/archive` has a new commit `prod/<region>: …` (`git -C data/
 curl -s -X POST http://localhost:3000/api/subscribe -H 'content-type: application/json' -d '{"email":"you@example.com"}'
 ```
 `{"ok":true}`; without `BREVO_API_KEY` the email with the `/confirm?token=…` link is in the backend console.
+Opening the link shows a "Confirm" page and changes nothing; only the button confirms (`curl -s
+"http://localhost:3000/confirm?token=…"` returns the page, the subscriber stays unconfirmed). The same for
+`/unsubscribe?token=…`.
 The sixth request within an hour from the same IP gets `429`.
 
 ### Email design

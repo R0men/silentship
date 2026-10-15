@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { pct } from "@/lib/format";
+import { groupTitle, pct } from "@/lib/format";
 import { useLive } from "./Live";
 import { ShareBar, TimeAgo } from "./ui";
 
@@ -35,10 +35,16 @@ function Channel({ c }) {
       {c.active.map((g) => (
         <Link key={g.group} className="channel-rollout" href={`/rollouts/${c.channel}/${encodeURIComponent(g.group)}`}>
           <span>
-            Rolling out <span className="mono">{g.toBuild ?? g.group}</span>
+            {g.toBuild ? (
+              <>
+                Rolling out <span className="mono">{g.toBuild}</span>
+              </>
+            ) : (
+              groupTitle(g)
+            )}
           </span>
           <span className="muted">
-            {pct(g.share)} of edges · {g.files} files
+            {pct(g.share)} of edges · {g.files} file{g.files === 1 ? "" : "s"}
           </span>
           <ShareBar share={g.share} />
         </Link>
