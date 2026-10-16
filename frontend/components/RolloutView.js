@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
+import { typeHref } from "@/lib/apiType";
 import { apiStatusLabel, hostLabel, KIND_LABEL, pct, STATUS_LABEL } from "@/lib/format";
 import { Segmented, Severity, ShareBar, Sparkline } from "./ui";
 
@@ -122,7 +124,9 @@ export default function RolloutView({ rollout }) {
           {changes.map((c) => (
             <div className="tr" key={`${c.path}:${c.kind}`}>
               <div>
-                <div className="path">{c.path}</div>
+                <Link className="path" href={typeHref(c.type, c.path)}>
+                  {c.path}
+                </Link>
                 <div className="detail">
                   {c.kind === "renamed" && c.from && <span>from {c.from.split(".").pop()} </span>}
                   {c.detail && <span>{c.detail} </span>}

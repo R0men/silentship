@@ -31,6 +31,8 @@ async function ensureIndexes(c) {
     c.rollouts.createIndex({ notifiedAt: 1 }),
     c.apiChanges.createIndex({ rolloutId: 1 }),
     c.apiChanges.createIndex({ path: 1 }),
+    // The old name of a rename: /reference pages look types up by `path` or `from`.
+    c.apiChanges.createIndex({ from: 1 }),
     c.subscribers.createIndex({ email: 1 }, { unique: true }),
     c.subscribers.createIndex({ token: 1 }, { unique: true }),
     c.deliveries.createIndex({ key: 1, transport: 1, subscriberId: 1 }, { unique: true }),

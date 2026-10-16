@@ -38,7 +38,8 @@ export default function Privacy() {
         </li>
       </ul>
       <p>
-        <b>Anonymous visit statistics</b> through Umami: which pages are opened, the referring site, browser, device
+        <b>Anonymous visit statistics</b> through Umami: which pages are opened, a few anonymous
+        interactions on them (opening a rollout, starting the sign-up form), the referring site, browser, device
         type and country. Umami sets no cookies and stores no IP addresses or other personal data, so a visit cannot be
         traced back to you. We do not use advertising or tracking cookies; the site sets no cookies at all. Pages you
         open here are not linked to your email address.

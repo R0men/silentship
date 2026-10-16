@@ -144,3 +144,36 @@ export function apiStatus(path, cat = apiCatalog()) {
   }
   return { status: "undocumented", apiSet: null };
 }
+
+// Microsoft Learn folders per root namespace; Outlook's enums live under Office but are documented apart.
+const LEARN_FOLDER = {
+  Excel: "excel",
+  Word: "word",
+  PowerPoint: "powerpoint",
+  OneNote: "onenote",
+  Visio: "visio",
+  Office: "office",
+  OfficeExtension: "office",
+};
+const PREVIEW_VIEW = {
+  excel: "excel-js-preview",
+  word: "word-js-preview",
+  powerpoint: "powerpoint-js-preview",
+  office: "common-js-preview",
+  outlook: "outlook-js-preview",
+};
+
+/**
+ * The Microsoft Learn page of a documented type (`.../javascript/api/excel/excel.range`), or null: not in
+ * either package, or not a type page (a function or an object such as `Office.context.ui` has none of
+ * its own). Preview types get the preview view.
+ */
+export function learnUrl(type, cat = apiCatalog()) {
+  const info = cat.entries.get(type);
+  const segs = type.split(".");
+  if (!info || segs.length < 2 || !segs.slice(1).every((s) => /^[A-Z]/.test(s))) return null;
+  const folder = type.startsWith("Office.MailboxEnums.") ? "outlook" : LEARN_FOLDER[segs[0]];
+  if (!folder) return null;
+  const view = info.status === "preview" && PREVIEW_VIEW[folder] ? `?view=${PREVIEW_VIEW[folder]}` : "";
+  return `https://learn.microsoft.com/en-us/javascript/api/${folder}/${type.toLowerCase()}${view}`;
+}

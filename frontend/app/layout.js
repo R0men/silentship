@@ -42,6 +42,7 @@ export default function RootLayout({ children }) {
               <nav>
                 <LiveBadge />
                 <Link href="/#rollouts">Rollouts</Link>
+                <Link href="/reference">API changes</Link>
                 <a className="nav-rss" href="/rss.xml">
                   RSS
                 </a>

@@ -57,7 +57,11 @@ curl -sI https://silentship.dev/opengraph-image | head -3
 curl -s https://silentship.dev/llms.txt
 ```
 - `robots.txt`: `Disallow` for `/api/`, `/confirm`, `/unsubscribe`, `/health` and `Sitemap: https://silentship.dev/sitemap.xml`.
-- `sitemap.xml`: valid XML with `/`, `/privacy` and one URL per group from `/api/sitemap`; every `<loc>` is absolute.
+- `sitemap.xml`: valid XML with `/`, `/privacy`, `/reference`, one URL per group and one per API type from
+  `/api/sitemap`; every `<loc>` is absolute.
+- `/reference/<type>` of a changed type: title and h1 say what happened and on which channel; canonical is the
+  exact identifier; a lower-case spelling answers 308 to it; a type that never changed — 404 and `noindex`.
+  Every API row on a rollout page links to its type page.
 - canonical and `og:url` are absolute; `og:image` is a 1200×630 PNG.
 - `llms.txt`: `text/plain`, heading `# silentship`, absolute links, "Recent rollouts" matches the home page.
 - A missing rollout page (`/rollouts/prod/nope`) — 404 and `noindex`.
@@ -65,8 +69,9 @@ curl -s https://silentship.dev/llms.txt
 
 ## 6. Umami
 
-In production, open the site → the Umami dashboard shows the visit almost immediately. Subscribe — a
-`subscribe` event. Locally (`npm run dev`) the script is not loaded; with `npm start` it is, but
+In production, open the site → the Umami dashboard shows the visit almost immediately. Scroll to "Rollouts" — one
+`view_rollouts` (not again after reloading the tab); click a rollout — `open_rollout` with `channel`, `severity`,
+`from`; focus the email field — `subscribe_start` (once); subscribe — `subscribe`. Locally (`npm run dev`) the script is not loaded; with `npm start` it is, but
 `data-domains` does not count `localhost`.
 
 ## 7. Deploy

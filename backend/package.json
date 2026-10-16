@@ -20,7 +20,8 @@
     "serve": "node src/cli.js serve",
     "crawl": "node src/cli.js crawl",
     "test": "vitest run",
-    "watch": "node src/cli.js watch"
+    "watch": "node src/cli.js watch",
+    "reclassify": "node src/cli.js reclassify"
   },
   "dependencies": {
     "@babel/parser": "^7.29.9",

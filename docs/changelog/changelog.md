@@ -15,6 +15,11 @@
 
 ## History
 
+- **2026-10-17** — [2026-10-17.md](2026-10-17.md)
+  - `[Feature]` Umami events: `open_rollout`, `view_rollouts`, `subscribe_start`
+  - `[Feature]` API type pages `/reference` with status, advice, error messages and history
+  - `[Bug Fix]` Preview API changes saved before classification showed as High
+
 - **2026-10-15** — [2026-10-15.md](2026-10-15.md)
   - `[Infra]` Repository, CI and automatic deploys to the VPS
   - `[Feature]` SEO: generated sitemap.xml, robots.txt, canonical URLs, Open Graph

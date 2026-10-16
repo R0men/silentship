@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { db } from "../db.js";
 import { SEVERITY_RANK } from "../analysis/diff.js";
+import { apiStatus, learnUrl } from "../analysis/api-catalog.js";
 import { LOADER_PATH } from "../crawler/manifest.js";
 import { CONFIRM_RUNS } from "../pipeline/rollouts.js";
 
@@ -199,6 +200,8 @@ function groupApiChanges(rows) {
         apiSet: c.apiSet ?? null,
         files: [c.file],
         detail: describe(c.kind, c.before, c.after),
+        type: apiTypeOf(c.path),
+        fromType: c.from ? apiTypeOf(c.from) : null,
       });
     }
   }
@@ -237,6 +240,225 @@ export async function getGroup(channel, group) {
     })),
     apiChanges: groupApiChanges(changes),
   };
+}
+
+/**
+ * The API type a changed path belongs to — the unit of a /reference page: the path up to its last
+ * PascalCase segment after the root (classes and enums are PascalCase, members camelCase; enum values are
+ * not separate paths). `Excel.Copilot.allowedUrls` → `Excel.Copilot`. A path without one
+ * (`Office.context.document.getFileAsync`) belongs to its parent object; a two-segment one (`Excel.run`)
+ * is its own type.
+ */
+export function apiTypeOf(path) {
+  const segs = path.split(".");
+  for (let i = segs.length - 1; i >= 1; i--) if (/^[A-Z]/.test(segs[i])) return segs.slice(0, i + 1).join(".");
+  return segs.length > 2 ? segs.slice(0, -1).join(".") : path;
+}
+
+/** A dotted JavaScript identifier path, as the reflection produces them. */
+export const TYPE_RE = /^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*){0,9}$/;
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const latest = (dates) => dates.filter(Boolean).sort((a, b) => b - a)[0] ?? null;
+const keyOf = (channel, group) => `${channel}/${group}`;
+const splitKey = (k) => ({ channel: k.slice(0, k.indexOf("/")), group: k.slice(k.indexOf("/") + 1) });
+
+/** Summaries of the given groups that are confirmed, by `channel/group`; numbers come from listGroups. */
+async function confirmedGroups(keys) {
+  const out = new Map();
+  for (const k of new Set(keys)) {
+    const [summary] = await listGroups({ ...splitKey(k), limit: 1 });
+    if (summary) out.set(k, summary);
+  }
+  return out;
+}
+
+/** apiChanges rows of `type`: by `path`, or by `from` for the old name of a rename. */
+async function typeRows(type, flags = "") {
+  const { apiChanges } = await db();
+  const re = new RegExp(`^${escapeRe(type)}(\\.|$)`, flags);
+  const lower = type.toLowerCase();
+  const rows = await apiChanges.find({ $or: [{ path: re }, { from: re }] }).toArray();
+  return rows.filter((c) => [c.path, c.from].some((p) => p && apiTypeOf(p).toLowerCase() === lower));
+}
+
+/**
+ * Change history of one API type across confirmed rollouts, for /reference/<type>. A rename shows on the
+ * pages of both names. The lookup is exact; when nothing matches, a case-insensitive retry finds the
+ * canonical spelling (`type` in the result) so the page can redirect. null — never changed in a confirmed
+ * rollout.
+ */
+export async function getApiType(type) {
+  if (!TYPE_RE.test(type)) return null;
+  const { rollouts, apiChanges } = await db();
+  let rows = await typeRows(type);
+  let canonical = type;
+  if (!rows.length) {
+    rows = await typeRows(type, "i");
+    const lower = type.toLowerCase();
+    const hit = rows.flatMap((c) => [c.path, c.from]).find((p) => p && apiTypeOf(p).toLowerCase() === lower);
+    if (!hit) return null;
+    canonical = apiTypeOf(hit);
+    rows = rows.filter((c) => [c.path, c.from].some((p) => p && apiTypeOf(p) === canonical));
+  }
+
+  const ids = [...new Map(rows.map((c) => [String(c.rolloutId), c.rolloutId])).values()];
+  const docs = await rollouts
+    .find({ _id: { $in: ids }, region: config.region })
+    .project({ channel: 1, group: 1, path: 1, status: 1, lastSeenAt: 1, completedAt: 1 })
+    .toArray();
+  const byId = new Map(docs.map((r) => [String(r._id), r]));
+  const groups = await confirmedGroups(docs.map((r) => keyOf(r.channel, r.group)));
+
+  // One event per (group, path, kind): the same change in every host file is one row with the file list.
+  const events = new Map();
+  for (const c of rows) {
+    const r = byId.get(String(c.rolloutId));
+    const g = r && groups.get(keyOf(r.channel, r.group));
+    if (!g) continue; // another region, or a group that was never confirmed
+    const key = `${keyOf(g.channel, g.group)}\u0000${c.path}\u0000${c.kind}`;
+    let e = events.get(key);
+    if (!e) {
+      e = {
+        channel: g.channel,
+        group: g.group,
+        toBuild: g.toBuild,
+        fromBuilds: g.fromBuilds,
+        removal: g.removal,
+        groupStatus: g.status,
+        share: g.status === "complete" ? 1 : g.share,
+        firstSeenAt: g.firstSeenAt,
+        completedAt: g.completedAt,
+        path: c.path,
+        from: c.from ?? null,
+        type: apiTypeOf(c.path),
+        fromType: c.from ? apiTypeOf(c.from) : null,
+        kind: c.kind,
+        severity: c.severity,
+        apiStatus: c.apiStatus ?? null,
+        apiSet: c.apiSet ?? null,
+        detail: describe(c.kind, c.before, c.after),
+        files: [],
+        pulledFiles: [],
+        lastModified: null,
+      };
+      events.set(key, e);
+    }
+    (r.status === "abandoned" ? e.pulledFiles : e.files).push(r.path);
+    if (SEVERITY_RANK[c.severity] > SEVERITY_RANK[e.severity]) e.severity = c.severity;
+    e.lastModified = latest([e.lastModified, r.lastSeenAt, r.completedAt]);
+  }
+  if (!events.size) return null;
+
+  // A change whose files were all pulled back did not stick, whatever the rest of its build did.
+  const list = [...events.values()]
+    .map(({ groupStatus, ...e }) => ({
+      ...e,
+      status: e.files.length ? groupStatus : "abandoned",
+      files: e.files.sort(),
+      pulledFiles: e.pulledFiles.sort(),
+    }))
+    .sort((a, b) => b.firstSeenAt - a.firstSeenAt || a.path.localeCompare(b.path));
+
+  // Other types changed by the same rollouts: what a reader of this page most likely wants next.
+  const keys = [...new Set(list.map((e) => keyOf(e.channel, e.group)))];
+  const siblings = await rollouts
+    .find({ region: config.region, $or: keys.map(splitKey) })
+    .project({ _id: 1 })
+    .toArray();
+  const near = await apiChanges
+    .find({ rolloutId: { $in: siblings.map((r) => r._id) } })
+    .project({ path: 1, kind: 1, severity: 1 })
+    .toArray();
+  const related = new Map();
+  for (const c of near) {
+    const t = apiTypeOf(c.path);
+    const prev = related.get(t);
+    if (t !== canonical && (!prev || SEVERITY_RANK[c.severity] > SEVERITY_RANK[prev.severity])) {
+      related.set(t, { type: t, kind: c.kind, severity: c.severity });
+    }
+  }
+
+  return {
+    type: canonical,
+    namespace: canonical.split(".")[0],
+    // Today's documentation from the bundled @types packages: GA / preview / undocumented, and its page.
+    docs: { ...apiStatus(canonical), url: learnUrl(canonical) },
+    events: list,
+    lastModified: latest(list.map((e) => e.lastModified)),
+    related: [...related.values()]
+      .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] || a.type.localeCompare(b.type))
+      .slice(0, 12),
+  };
+}
+
+/**
+ * Every API type changed by a confirmed rollout, newest first, for the /reference hub and the sitemap:
+ * channels, kinds of change, number of changed paths, highest severity, dates.
+ */
+export async function listApiTypes() {
+  const { rollouts, apiChanges } = await db();
+  const confirmed = await sitemapGroups();
+  if (!confirmed.length) return [];
+  const docs = await rollouts
+    .find({ region: config.region, $or: confirmed.map(({ channel, group }) => ({ channel, group })) })
+    .project({ channel: 1, group: 1, firstSeenAt: 1, lastSeenAt: 1, completedAt: 1 })
+    .toArray();
+  const byId = new Map(docs.map((r) => [String(r._id), r]));
+  // A type's date is when its rollout group was first seen, as on the rollout page — not one file's sighting.
+  const groupFirst = new Map();
+  for (const r of docs) {
+    const k = keyOf(r.channel, r.group);
+    if (!groupFirst.has(k) || r.firstSeenAt < groupFirst.get(k)) groupFirst.set(k, r.firstSeenAt);
+  }
+  const rows = await apiChanges
+    .aggregate([
+      { $match: { rolloutId: { $in: docs.map((r) => r._id) } } },
+      {
+        $group: {
+          _id: { path: "$path", from: "$from", kind: "$kind" },
+          sevRank: { $max: sevRank },
+          ids: { $addToSet: "$rolloutId" },
+        },
+      },
+    ])
+    .toArray();
+
+  const types = new Map();
+  const add = (type, row, rs) => {
+    let t = types.get(type);
+    if (!t) {
+      t = { type, kinds: new Set(), channels: new Set(), paths: new Set(), sevRank: 0, lastSeenAt: null, lastModified: null };
+      types.set(type, t);
+    }
+    t.kinds.add(row._id.kind);
+    t.paths.add(row._id.path);
+    t.sevRank = Math.max(t.sevRank, row.sevRank);
+    for (const r of rs) {
+      t.channels.add(r.channel);
+      t.lastSeenAt = latest([t.lastSeenAt, groupFirst.get(keyOf(r.channel, r.group))]);
+      t.lastModified = latest([t.lastModified, r.lastSeenAt, r.completedAt]);
+    }
+  };
+  for (const row of rows) {
+    const rs = row.ids.map((id) => byId.get(String(id))).filter(Boolean);
+    const type = apiTypeOf(row._id.path);
+    add(type, row, rs);
+    if (row._id.from && apiTypeOf(row._id.from) !== type) add(apiTypeOf(row._id.from), row, rs);
+  }
+  return [...types.values()]
+    .map((t) => ({
+      type: t.type,
+      namespace: t.type.split(".")[0],
+      kinds: [...t.kinds].sort(),
+      channels: ["prod", "beta"].filter((c) => t.channels.has(c)),
+      changes: t.paths.size,
+      severity: SEVERITY_NAME[t.sevRank],
+      docs: apiStatus(t.type),
+      lastSeenAt: t.lastSeenAt,
+      lastModified: t.lastModified,
+    }))
+    .sort((a, b) => b.lastSeenAt - a.lastSeenAt || a.type.localeCompare(b.type));
 }
 
 /** Per channel: stable loader build, rollouts in flight, crawl health. */

@@ -108,6 +108,18 @@ change gets `apiStatus` (`ga` / `preview` / `undocumented`) and `apiSet` (`Excel
 
 The types are updated with the dependencies (`npm update -w backend`).
 
+**Stored changes without a status.** Changes saved before classification existed (the beta rollout of
+16.0.20606.15070, first seen 2026-10-14) have no `apiStatus` and keep the raw diff's severity — preview
+removals showed as High. `reclassifyStored` (`analysis/reclassify.js`) classifies every row with
+`apiStatus: null` and lowers the severity of its rollouts to match; it never raises one, so the guard against
+High from an incomplete reflection holds. `cli start` runs it at boot; `npm run reclassify -w backend` runs it
+alone. Idempotent: a second run finds nothing. Alerts already sent are not resent.
+
+The catalogue is also read by the web API: `/api/types/:type` returns the type's current status, requirement
+set and Microsoft Learn page (`learnUrl`: `learn.microsoft.com/en-us/javascript/api/<host>/<type>`, with the
+preview view for preview types; only for documented types whose path is all PascalCase after the root, since
+functions and objects such as `Office.context.ui` have no page of their own).
+
 ## Renames
 
 `classify.js`: a "removed + added" pair with the same parent and the same node kind becomes one `renamed`

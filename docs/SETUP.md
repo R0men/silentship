@@ -26,6 +26,7 @@ npm run crawl             # one run of every channel (the first records a baseli
 npm run serve -w backend  # API only, no crawls (safe against a production database)
 npm run watch -w backend -- you@company.com "Excel.Range.*" excel   # add a watchlist entry
 node backend/src/cli.js mail-preview you@company.com                 # preview emails (needs BREVO_API_KEY)
+npm run reclassify -w backend                                        # classify stored API changes saved without a status (start does it too)
 ```
 
 > ⚠️ `npm start` and `npm run crawl` on your machine against a **production** `MONGODB_URI` write to the same
@@ -147,7 +148,7 @@ Logs: the repository's Actions tab; on the server `sudo journalctl -u silentship
   `/health` returns 503 when a channel has not finished a run for 20 min, the last run failed or a run is
   stuck — not only when the process is down.
 - Optionally a second monitor on the site itself.
-- Umami — visits and the `subscribe` event (`architecture/analytics.md`).
+- Umami — visits and events (`architecture/analytics.md`).
 - Google Search Console / Bing Webmaster Tools — indexing, sitemap (`architecture/seo.md`).
 
 ## Email (Brevo) and DNS

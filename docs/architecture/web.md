@@ -11,7 +11,9 @@ Code: `backend/src/web/server.js` (Fastify, routes), `queries.js` (read models),
 | `GET /api/overview` | Per channel: stable build, last run, active groups; 30-day stats (distinct builds, and builds or other changes with High severity — not groups) | `/api/*` |
 | `GET /api/rollouts?channel&severity&before&limit` | Rollout groups, newest first; `before` is a `firstSeenAt` cursor; `limit` 1–100 (30) | `/api/*` |
 | `GET /api/rollouts/:channel/:group` | One group with hosts, share history and API changes (the same `Office.*` change from several files is one row with the file list) | `/api/*` |
-| `GET /api/sitemap` | Keys and dates of every rollout page for `/sitemap.xml` ([`seo.md`](seo.md)) | `/api/*` |
+| `GET /api/types` | Every API type changed by a confirmed rollout (`listApiTypes`): channels, kinds, highest severity, dates | `/api/*` |
+| `GET /api/types/:type` | One type's change history (`getApiType`): one event per group, path and kind with files and pulled-back files, related types; `type` in the reply is the canonical spelling | `/api/*` |
+| `GET /api/sitemap` | Keys and dates of every rollout and API type page for `/sitemap.xml` ([`seo.md`](seo.md)) | `/api/*` |
 | `GET /api/live` | Server-Sent Events, see below | `/api/*` |
 | `GET /rss.xml` | RSS 2.0, the 50 newest groups | `/rss.xml` |
 | `POST /api/subscribe`, `GET\|POST /confirm`, `GET\|POST /unsubscribe` | Subscriptions; GET only shows a page with a button, POST changes state ([`alerts.md`](alerts.md)) | yes |
@@ -29,6 +31,22 @@ back it is abandoned after 24 h and stays hidden. Definitions:
 
 `sitemapGroups` for the sitemap is deliberately a separate, light query: keys and dates only, none of these numbers
 (it applies the same confirmation filter).
+
+## API types (/reference)
+
+A page per **type**, not per member: `apiTypeOf(path)` cuts a path at its last PascalCase segment after the
+root (`Excel.Copilot.allowedUrls` → `Excel.Copilot`); a path without one belongs to its parent object
+(`Office.context.document.getFileAsync` → `Office.context.document`), a two-segment one is its own type
+(`Excel.run`). Members are anchors on the type's page (`/reference/Excel.Copilot#allowedUrls`).
+
+- Only changes of **confirmed** groups count; group numbers come from `listGroups`. A type that never changed
+  in a confirmed rollout has no page (404): the ~5,000 reflected paths are not pages.
+- A rename is on the pages of both names (`apiChanges` is looked up by `path` and `from`).
+- A change whose files were all pulled back has status `abandoned`.
+- `docs`: the type's status today from the `@types` catalogue (`ga` / `preview` / `undocumented`), its requirement
+  set and Microsoft Learn URL ([`api-surface.md`](api-surface.md)); `/api/types` has the status per type too.
+- The lookup is exact; on a miss a case-insensitive retry returns the canonical spelling and the page answers
+  308 to it, so each type has one URL.
 
 ## Live updates (SSE)
 

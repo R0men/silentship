@@ -11,6 +11,8 @@ Code: `frontend/` — Next.js 16 (App Router, Turbopack), React 19, JavaScript. 
 |---|---|---|
 | `/` | `app/page.js` — headline with live numbers, subscribe form, channel status, rollout feed | SSR on every request (`force-dynamic`) |
 | `/rollouts/[channel]/[group]` | `app/rollouts/[channel]/[group]/page.js` — share, facts, hosts, API changes | SSR on every request |
+| `/reference` | `app/reference/page.js` — hub: every API type changed by a confirmed rollout, by namespace | SSR on every request |
+| `/reference/[type]` | `app/reference/[type]/page.js` — one API type: state per channel, advice, change history, related types; wording in `lib/apiType.js` ([`seo.md`](seo.md)) | SSR on every request |
 | `/privacy` | `app/privacy/page.js`; operator details in `lib/site.js` | static at build time |
 | `/sitemap.xml`, `/robots.txt`, `/llms.txt`, `/opengraph-image` | [`seo.md`](seo.md) | — |
 

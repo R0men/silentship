@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { track, trackOnce } from "@/lib/analytics";
 import { groupTitle, pct, STATUS_LABEL } from "@/lib/format";
 import { ChannelTag, Segmented, Severity, ShareBar, TimeAgo } from "./ui";
 import { useToast } from "./Toast";
@@ -24,7 +25,11 @@ function Row({ g }) {
   const href = `/rollouts/${g.channel}/${encodeURIComponent(g.group)}`;
   const share = g.status === "complete" ? 1 : g.share;
   return (
-    <Link className="row" href={href}>
+    <Link
+      className="row"
+      href={href}
+      onClick={() => track("open_rollout", { channel: g.channel, severity: g.severity, from: "list" })}
+    >
       <Severity value={g.severity} />
       <div className="row-main">
         <div className="row-title">
@@ -67,6 +72,20 @@ export default function Rollouts({ initial, initialOverview }) {
   const [channel, setChannel] = useState("all");
   const [severity, setSeverity] = useState("all");
   const [loading, setLoading] = useState(false);
+  const section = useRef(null);
+
+  // view_rollouts: the list scrolled into view, once per visit.
+  useEffect(() => {
+    const el = section.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      io.disconnect();
+      trackOnce("view_rollouts");
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   // Live: the snapshot carries the unfiltered first page; with filters on, refetch that view instead.
   useLiveEvent(async (snapshot) => {
@@ -108,7 +127,7 @@ export default function Rollouts({ initial, initialOverview }) {
   }
 
   return (
-    <section className="changelog" id="rollouts">
+    <section className="changelog" id="rollouts" ref={section}>
       <div className="section-head">
         <div>
           <h2>Rollouts</h2>

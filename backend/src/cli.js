@@ -5,6 +5,7 @@ import { GitArchive } from "./archive/git-archive.js";
 import { runChannel } from "./pipeline/run.js";
 import { notifyPending, pruneUnconfirmed, sendPreviewEmails } from "./notify/alerts.js";
 import { startServer } from "./web/server.js";
+import { reclassifyStored } from "./analysis/reclassify.js";
 
 let running = false;
 
@@ -44,19 +45,26 @@ async function addWatch(email, pattern, hosts) {
   console.log(`Watching ${pattern}${hosts.length ? ` on ${hosts.join(",")}` : ""} for ${email}`);
 }
 
+/** Stored changes saved before classification get their status, and their rollouts' severity drops. */
+async function reclassify() {
+  const { changes, rollouts } = await reclassifyStored();
+  if (changes) console.log(`Reclassified ${changes} stored API change(s); lowered severity of ${rollouts} rollout(s)`);
+}
+
 const USAGE = `usage:
   cli crawl                                  run every channel once
   cli serve                                  public changelog web server
   cli start                                  web server + scheduled crawls (${config.cron})
   cli dev                                    like start, on a throwaway in-memory MongoDB
   cli watch <email> <pattern> [host,host]    add a watchlist entry, e.g. Excel.Range.* excel
+  cli reclassify                             classify stored API changes saved without an API status
   cli mail-preview <email>                   send sample confirmation, alert and rollback emails (real data, dummy tokens)`;
 
 async function main(argv) {
   const [command, ...args] = argv;
   const archive = new GitArchive(config.archiveDir);
   // Fail at startup with one clear message rather than on every crawl tick.
-  if (["crawl", "serve", "start", "watch", "mail-preview"].includes(command) && !process.env.MONGODB_URI) {
+  if (["crawl", "serve", "start", "watch", "reclassify", "mail-preview"].includes(command) && !process.env.MONGODB_URI) {
     throw new Error(
       "MONGODB_URI is not set (see .env.example), or use `node src/cli.js dev` for an in-memory database.",
     );
@@ -85,11 +93,16 @@ async function main(argv) {
     }
     case "start": {
       await archive.init();
+      await reclassify();
       await startServer();
       cron.schedule(config.cron, () => void crawlOnce(archive), { noOverlap: true });
       void crawlOnce(archive);
       return;
     }
+    case "reclassify":
+      await reclassify();
+      await closeDb();
+      return;
     case "watch": {
       const [email, pattern, hosts] = args;
       if (!email || !pattern) throw new Error(USAGE);

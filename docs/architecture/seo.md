@@ -21,6 +21,8 @@ Open Graph (`siteName`, `locale`, `url`, `type`), Twitter `summary_large_image`.
 |---|---|---|---|
 | `/` | `silentship — know when Office.js changes on the CDN` (absolute) | `/` | JSON-LD `WebSite` |
 | `/rollouts/<channel>/<group>` | `Office.js <build> rollout (production\|beta) — silentship` | `/rollouts/<channel>/<group>` | `og:type=article`; description with share, files, API changes; a missing rollout → `noindex` + 404 |
+| `/reference` | `Office.js API changes by type — silentship` | `/reference` | hub, grouped by namespace |
+| `/reference/<type>` | `<API> <what happened> in Office.js <channels> — silentship`, e.g. `Excel.SensitivityLabelAbacAttribute removed in Office.js beta`; several changed paths → `<type>: N API changes in Office.js` | `/reference/<type>` | `og:type=article`; the h1 repeats the title; JSON-LD `TechArticle` + `BreadcrumbList`; another spelling → 308; unknown → 404 + `noindex` |
 | `/privacy` | `Privacy policy — silentship` | `/privacy` | — |
 
 **Open Graph image** — `app/opengraph-image.js` (`next/og`, 1200×630, generated at build time), one for the whole site.
@@ -33,7 +35,9 @@ would be baked in empty; this way new rollouts appear without a redeploy. Conten
 - `/` — `lastmod` = the newest change of any rollout, `hourly`, priority 1;
 - `/privacy` — `yearly`, 0.2;
 - every rollout group from `/api/sitemap` — `lastmod` = max(`lastSeenAt`, `completedAt`), `daily`, priority
-  0.8 for prod and 0.6 for beta.
+  0.8 for prod and 0.6 for beta;
+- `/reference` — `lastmod` = the newest type, `daily`, 0.7;
+- every API type page — `lastmod` = the newest change of its rollouts, `weekly`, 0.5.
 
 The protocol limit is 50,000 URLs per file (`$limit` in `sitemapGroups`); far away. A down backend gives a
 sitemap with the two static URLs instead of an error.
@@ -48,7 +52,7 @@ from `SITE_URL`.
 
 `app/llms.txt/route.js` — Markdown per [llmstxt.org](https://llmstxt.org): what silentship is, how to read
 share and severity, the limits (only the CDN's JavaScript layer, no Microsoft code), links to the changelog,
-RSS and sitemap, and the 20 newest rollout groups from `/api/rollouts`. Rendered per request,
+RSS and sitemap, the 20 newest rollout groups from `/api/rollouts` and the 20 most recently changed API types from `/api/types`. Rendered per request,
 `text/plain; charset=utf-8`. The JSON API is deliberately not listed: `/api/` is disallowed in `robots.txt`.
 
 ## After deploying (manual, outside the code)
@@ -58,4 +62,32 @@ RSS and sitemap, and the 20 newest rollout groups from `/api/rollouts`. Rendered
   whether Googlebot really fetched the file shows in the nginx access log (`66.249.*`, `GET /sitemap.xml … 200`).
 - Checks — [`../VERIFY.md`](../VERIFY.md), "SEO".
 
-Per-method API pages (`TECH.md` §4) are not built yet — [`../tasks/PLAN.md`](../tasks/PLAN.md).
+## API type pages (`/reference`)
+
+Each page answers one exact search ("Excel.SensitivityLabelAbacAttribute removed"). Rules that keep them from
+reading as thin or doorway pages:
+
+- **Only changed types.** A page exists only for a type changed by a confirmed rollout (`/api/types`); the
+  rest of the reflected surface (~5,000 paths) is 404 and outside the sitemap. A page per type, not per
+  member: members are anchors, so one class with ten changed members is one page with ten rows.
+- **Content from our own data:** state per channel (build, first seen, rollout progress), what it means for
+  add-in code (per kind of change, preview/undocumented status, "beta only so far"), the change history with
+  hosts and links to rollout pages, types changed by the same rollouts. No Microsoft code; documentation is a
+  Microsoft Learn search link.
+- **Honest titles:** the title names the channel ("in Office.js beta") and, for non-GA APIs, the status
+  ("(preview API)", "(undocumented API)"), and follows the data: when a change reaches production or is
+  pulled back, title and description change with it. When one build has several changes for the same API, a
+  rename names the page, then a removal, then the rest: the old name is what people search for.
+- **Status first:** next to the name, "Preview · ExcelApi BETA", "GA · ExcelApi 1.19" or "Undocumented", with a
+  direct Microsoft Learn link or "Not in Microsoft's documentation". The advice depends on it: preview — do
+  not use in production, check existence (no requirement set helps); GA removal — the set check still passes,
+  check the API itself; undocumented — internal.
+- **The error messages people search for:** after a removal or rename the page lists the TypeErrors add-in
+  code gets — Chromium ("X is not a constructor", "Cannot read properties of undefined") and, when Mac or iOS
+  files changed, Safari ("undefined is not a constructor").
+- **One URL:** the exact identifier (`/reference/Excel.Range`), case kept; other spellings 308 to it.
+- **Linked:** the nav ("API changes"), every API row on a rollout page, related types, the hub, `llms.txt`,
+  the sitemap.
+- **If Search Console reports many "Crawled – currently not indexed"** type pages, add a `noindex` threshold
+  (e.g. beta-only additions with a single event) in `generateMetadata` of `app/reference/[type]/page.js`
+  rather than dropping pages.

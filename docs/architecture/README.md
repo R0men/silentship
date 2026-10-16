@@ -5,7 +5,8 @@ and [`../VERIFY.md`](../VERIFY.md) (manual checks). Product decisions, scope and
 [`../../TECH.md`](../../TECH.md); this folder covers the implementation file by file.
 
 Current scope: phase 0 and the core of phase 1 from `TECH.md` §4. Multi-region (only a `region` tag in the
-data), the CI trigger, bisection, issue correlation and per-method SEO pages are out of scope.
+data), the CI trigger, bisection and issue correlation are out of scope. API type pages (`/reference`) are
+built — [`seo.md`](seo.md), [`web.md`](web.md).
 
 ## Modules
 
@@ -20,7 +21,7 @@ data), the CI trigger, bisection, issue correlation and per-method SEO pages are
 | [`web.md`](web.md) | JSON API, RSS, SSE `/api/live`, `/health`, the single source of numbers | `backend/src/web/*` |
 | [`frontend.md`](frontend.md) | The Next.js site: pages, proxy to the backend, live updates, design | `frontend/*` |
 | [`seo.md`](seo.md) | Metadata, canonical URLs, Open Graph, generated `sitemap.xml`, `robots.txt`, `llms.txt` | `frontend/app/{layout,page,sitemap,robots,opengraph-image}.js`, `frontend/app/llms.txt/route.js`, `frontend/lib/site.js` |
-| [`analytics.md`](analytics.md) | Umami: the script, the `subscribe` event, privacy | `frontend/app/layout.js`, `frontend/components/Subscribe.js` |
+| [`analytics.md`](analytics.md) | Umami: the script, events, privacy | `frontend/app/layout.js`, `frontend/lib/analytics.js` |
 
 ## One crawl (cron, every 10 minutes)
 

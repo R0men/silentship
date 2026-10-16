@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { track, trackOnce } from "@/lib/analytics";
 import { useToast } from "./Toast";
 
 const ERRORS = {
@@ -25,7 +26,7 @@ export default function Subscribe() {
       });
       if (!res.ok) throw Object.assign(new Error(), { status: res.status });
       // Counted after the API accepted it, so failed attempts do not inflate the conversion.
-      window.umami?.track("subscribe", { beta: form.beta.checked });
+      track("subscribe", { beta: form.beta.checked });
       form.reset();
       toast("Check your inbox — we sent you an email.");
     } catch (err) {
@@ -45,6 +46,8 @@ export default function Subscribe() {
           placeholder="you@company.com"
           aria-label="Email"
           autoComplete="email"
+          // The funnel start: subscribe_start minus subscribe = people who began and left.
+          onFocus={() => trackOnce("subscribe_start")}
         />
         <button className="btn" type="submit" disabled={busy}>
           {busy ? "Sending…" : "Notify me"}

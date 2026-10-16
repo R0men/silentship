@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { track } from "@/lib/analytics";
 import { AnimatedNumber, useLive } from "./Live";
 
 /** The biggest rollout in flight on a channel (most files), if any. */
@@ -49,7 +50,11 @@ export default function Headline({ initial }) {
           {g.files} host file{g.files === 1 ? " is" : "s are"} moving from{" "}
           <span className="mono">{g.fromBuilds.join(", ") || "the previous build"}</span>. Your users get it the next
           time Office loads your add-in from an edge that has it.{" "}
-          <Link className="lede-link" href={href("prod", g)}>
+          <Link
+            className="lede-link"
+            href={href("prod", g)}
+            onClick={() => track("open_rollout", { channel: "prod", severity: g.severity, from: "headline" })}
+          >
             {g.apiChangeCount ? `${g.apiChangeCount} API changes so far →` : "No public API changes so far →"}
           </Link>
         </p>
@@ -75,7 +80,11 @@ export default function Headline({ initial }) {
         <p className="lede">
           Already on <AnimatedNumber value={g.share} format={percent} /> of beta CDN edges, across {g.files} host files.
           Beta often runs ahead of production — this is your early warning.{" "}
-          <Link className="lede-link" href={href("beta", g)}>
+          <Link
+            className="lede-link"
+            href={href("beta", g)}
+            onClick={() => track("open_rollout", { channel: "beta", severity: g.severity, from: "headline" })}
+          >
             {g.apiChangeCount ? `${g.apiChangeCount} API changes →` : "See the rollout →"}
           </Link>
         </p>

@@ -6,7 +6,16 @@ import { SEVERITY_RANK } from "../analysis/diff.js";
 import { alreadySubscribedEmail, confirmEmail } from "../notify/email-templates.js";
 import { sendEmail } from "../notify/senders.js";
 import { esc } from "../util/html.js";
-import { crawlerHealth, getGroup, listGroups, overview, sitemapGroups } from "./queries.js";
+import {
+  crawlerHealth,
+  getApiType,
+  getGroup,
+  listApiTypes,
+  listGroups,
+  overview,
+  sitemapGroups,
+  TYPE_RE,
+} from "./queries.js";
 import { createLiveFeed } from "./live.js";
 import { actionPage } from "./action-page.js";
 
@@ -85,8 +94,23 @@ export async function buildServer() {
     return detail;
   });
 
-  /** Keys and dates of every rollout page; the frontend renders /sitemap.xml from it. */
-  app.get("/api/sitemap", async () => ({ rollouts: await sitemapGroups() }));
+  /** Every API type changed by a confirmed rollout: the /reference hub. */
+  app.get("/api/types", async () => ({ types: await listApiTypes() }));
+
+  /** One type's change history; `type` in the reply is the canonical spelling (lookup is case-insensitive). */
+  app.get("/api/types/:type", async (req, reply) => {
+    const { type } = req.params;
+    if (type.length > 200 || !TYPE_RE.test(type)) return reply.code(404).send({ error: "not_found" });
+    const detail = await getApiType(type);
+    if (!detail) return reply.code(404).send({ error: "not_found" });
+    return detail;
+  });
+
+  /** Keys and dates of every rollout and API type page; the frontend renders /sitemap.xml from it. */
+  app.get("/api/sitemap", async () => {
+    const [rollouts, types] = await Promise.all([sitemapGroups(), listApiTypes()]);
+    return { rollouts, types: types.map((t) => ({ type: t.type, lastModified: t.lastModified })) };
+  });
 
   app.get("/rss.xml", async (_req, reply) => {
     reply.type("application/rss+xml; charset=utf-8").send(rssFeed(await listGroups({ limit: 50 }), config.publicUrl));
