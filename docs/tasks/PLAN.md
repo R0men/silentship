@@ -15,6 +15,7 @@ An index of work agreed in `TECH.md` but not done. Unlike [`../changelog/changel
 | 8 | Discord / Teams / Telegram | — | not started | 🟡 |
 | 9 | Proxy Umami through the own domain (`/stats/*`) if ad blockers cut the stats | — | only if numbers look low | 🟡 |
 | 10 | CDN incidents: show short outages (e.g. a file 404 on most edges for one run) as their own events | 1 | not started | 🟠 nobody else records these |
+| 11 | `/reference` hub: "Recently changed" block, "new" marker, pagination or collapsed namespaces | — | not started | 🟡 needed once a big build adds many types |
 
 Order: **1 → 4**, the rest as signals come in.
 
@@ -40,3 +41,19 @@ is abandoned after 24 h without an alert and is hidden on the site (`docs/archit
   documents of past incidents.
 - Alert on it only once it is clearly an outage (several runs or several files); a single-run event is
   site-only.
+
+## 11. `/reference` hub at scale
+
+Today (`frontend/app/reference/page.js`) the hub lists every changed type on one page, grouped by namespace
+(alphabetical), newest first inside a namespace. Fine for a dozen types; a build that ships a new requirement
+set can add hundreds at once. Missing:
+
+- **"Recently changed"** — the ~10 freshest types across namespaces above the sections. Returning visitors
+  look for what is new, not for an alphabetical section; it also gives fresh type pages a link from the top
+  of the hub.
+- **A "new" marker** on types first seen in the last few days, so a fresh row does not get lost among old ones.
+- **Pagination or collapsed namespaces** once the page gets long; `/api/types` (`listApiTypes`) recomputes the
+  whole list on every request, so a large catalogue may also need a short cache there.
+- The hub has no live updates (`LiveRefresh`): new types appear on the next page load. Add it if the page
+  becomes something people keep open.
+
