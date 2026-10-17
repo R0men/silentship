@@ -1,6 +1,6 @@
-import { apiGetOr } from "@/lib/api";
+import { apiGet } from "@/lib/api";
 import { typeHref } from "@/lib/apiType";
-import { SITE_URL } from "@/lib/site";
+import { SITE, SITE_URL } from "@/lib/site";
 
 const latest = (rows) => {
   const d = rows.map((r) => r.lastModified).filter(Boolean).sort().at(-1);
@@ -12,11 +12,13 @@ const latest = (rows) => {
 export const dynamic = "force-dynamic";
 
 export default async function sitemap() {
-  const { rollouts, types = [] } = await apiGetOr("/api/sitemap", { rollouts: [] });
+  // No fallback: with the backend down (e.g. mid-deploy) an error makes crawlers retry, while an empty
+  // 200 would tell them every rollout and type page is gone.
+  const { rollouts, types = [] } = await apiGet("/api/sitemap");
   const newest = rollouts[0]?.lastModified ? new Date(rollouts[0].lastModified) : undefined;
   return [
     { url: `${SITE_URL}/`, lastModified: newest, changeFrequency: "hourly", priority: 1 },
-    { url: `${SITE_URL}/privacy`, changeFrequency: "yearly", priority: 0.2 },
+    { url: `${SITE_URL}/privacy`, lastModified: new Date(SITE.updated), changeFrequency: "yearly", priority: 0.2 },
     {
       url: `${SITE_URL}/reference`,
       lastModified: latest(types),

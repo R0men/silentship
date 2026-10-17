@@ -3,8 +3,10 @@ import Subscribe from "@/components/Subscribe";
 import Headline from "@/components/Headline";
 import ChannelStatus from "@/components/ChannelStatus";
 import Rollouts from "@/components/Rollouts";
+import JsonLd from "@/components/JsonLd";
 import { apiGetOr } from "@/lib/api";
-import { pageMeta, SITE, SITE_URL } from "@/lib/site";
+import { website } from "@/lib/jsonLd";
+import { pageMeta } from "@/lib/site";
 
 // Data changes every crawl; never prerender at build time. After load, components follow /api/live.
 export const dynamic = "force-dynamic";
@@ -21,13 +23,7 @@ export const metadata = {
   title: { absolute: TITLE },
 };
 
-const JSON_LD = {
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  name: SITE.name,
-  url: `${SITE_URL}/`,
-  description: "Office.js CDN change monitor: builds, rollouts and API-surface diffs.",
-};
+const JSON_LD = website("Office.js CDN change monitor: builds, rollouts and API-surface diffs.");
 
 export default async function Home() {
   const [overview, list] = await Promise.all([
@@ -38,7 +34,7 @@ export default async function Home() {
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
+      <JsonLd data={JSON_LD} />
       <section className="hero">
         <Scene className="scene" />
         <div className="hero-copy">

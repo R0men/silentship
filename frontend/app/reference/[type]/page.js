@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cache } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
+import JsonLd from "@/components/JsonLd";
 import { LiveRefresh } from "@/components/Live";
 import { ChannelTag, Severity } from "@/components/ui";
 import { apiGet } from "@/lib/api";
@@ -17,7 +18,8 @@ import {
   typeHref,
 } from "@/lib/apiType";
 import { apiStatusLabel, fmtDate, groupTitle, KIND_LABEL, pct, STATUS_LABEL } from "@/lib/format";
-import { pageMeta, SITE, SITE_URL } from "@/lib/site";
+import { breadcrumbs, officeJs, techArticle } from "@/lib/jsonLd";
+import { pageMeta, SITE } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -47,29 +49,20 @@ function Code({ text }) {
 }
 
 function jsonLd(t, title, description) {
-  const url = `${SITE_URL}${typeHref(t.type)}`;
   const dates = t.events.map((e) => e.firstSeenAt).sort();
   return [
-    {
-      "@context": "https://schema.org",
-      "@type": "TechArticle",
+    techArticle({
+      path: typeHref(t.type),
       headline: title,
       description,
-      url,
       datePublished: dates[0],
       dateModified: t.lastModified ?? dates.at(-1),
-      about: { "@type": "Thing", name: t.type },
-      publisher: { "@type": "Organization", name: SITE.name, url: `${SITE_URL}/` },
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        { "@type": "ListItem", position: 1, name: SITE.name, item: `${SITE_URL}/` },
-        { "@type": "ListItem", position: 2, name: "Office.js API changes", item: `${SITE_URL}/reference` },
-        { "@type": "ListItem", position: 3, name: t.type, item: url },
-      ],
-    },
+      about: { "@type": "Thing", name: t.type, isPartOf: officeJs() },
+    }),
+    breadcrumbs([
+      ["Office.js API changes", "/reference"],
+      [t.type, typeHref(t.type)],
+    ]),
   ];
 }
 
@@ -89,10 +82,7 @@ export default async function ApiTypePage({ params }) {
 
   return (
     <article className="release">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(t, title, description)).replace(/</g, "\\u003c") }}
-      />
+      <JsonLd data={jsonLd(t, title, description)} />
       <LiveRefresh />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/reference">Office.js API changes</Link>

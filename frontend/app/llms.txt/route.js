@@ -1,4 +1,4 @@
-import { apiGetOr } from "@/lib/api";
+import { apiGet } from "@/lib/api";
 import { typeHref } from "@/lib/apiType";
 import { groupTitle, KIND_LABEL, pct } from "@/lib/format";
 import { SITE, SITE_URL } from "@/lib/site";
@@ -15,30 +15,42 @@ function rolloutLine(g) {
       : g.status === "abandoned"
         ? "pulled back"
         : `on ~${pct(g.share)} of sampled CDN edges`;
-  const first = new Date(g.firstSeenAt).toISOString().slice(0, 10);
+  const from = g.fromBuilds.length ? `from ${g.fromBuilds.join(", ")}, ` : "";
   return (
     `- [Office.js ${groupTitle(g)} (${CHANNEL[g.channel]})](${SITE_URL}/rollouts/${g.channel}/${encodeURIComponent(g.group)}): ` +
-    `first seen ${first}, ${g.files} file(s), ${state}, severity ${g.severity}, ${g.apiChangeCount} API change(s)`
+    `${from}first seen ${day(g.firstSeenAt)}, ${g.files} file(s), ${state}, severity ${g.severity}, ${g.apiChangeCount} API change(s)`
   );
 }
 
 function typeLine(t) {
   const kinds = t.kinds.map((k) => (KIND_LABEL[k] ?? k).toLowerCase()).join(", ");
   const channels = t.channels.map((c) => CHANNEL[c]).join(" and ");
-  return `- [${t.type}](${SITE_URL}${typeHref(t.type)}): ${kinds} on ${channels}, severity ${t.severity}`;
+  return (
+    `- [${t.type}](${SITE_URL}${typeHref(t.type)}): ${kinds} on ${channels}, ${t.changes} change(s), ` +
+    `latest first seen ${day(t.lastSeenAt)}, severity ${t.severity}`
+  );
 }
+
+const day = (d) => new Date(d).toISOString().slice(0, 10);
 
 /** llms.txt (https://llmstxt.org): what the site is and where the useful pages are, in Markdown. */
 export async function GET() {
-  const [{ rollouts }, { types }] = await Promise.all([
-    apiGetOr("/api/rollouts?limit=20", { rollouts: [] }),
-    apiGetOr("/api/types", { types: [] }),
-  ]);
+  let rollouts;
+  let types;
+  try {
+    [{ rollouts }, { types }] = await Promise.all([apiGet("/api/rollouts?limit=20"), apiGet("/api/types")]);
+  } catch {
+    // A down backend (e.g. mid-deploy) must not be cached by crawlers as "no rollouts recorded yet".
+    return new Response("Temporarily unavailable\n", {
+      status: 503,
+      headers: { "content-type": "text/plain; charset=utf-8", "retry-after": "60" },
+    });
+  }
   const body = `# ${SITE.name}
 
 > ${SITE.name} monitors the Office.js CDN (appsforoffice.microsoft.com/lib/1/hosted/ and /lib/beta/hosted/). Every 10 minutes it samples every Office.js file on several CDN edges, tracks each new build as a rollout (which files, what share of edges serve it, since when) and diffs the public API surface (Office, Excel, Word, PowerPoint, OneNote, Visio, Outlook).
 
-Use it to answer "did Office.js change on the CDN?" and "which APIs changed in build X?". Shares are measured across sampled CDN edge responses, not across users. Severity: high = a public GA API was removed or its signature or enum values changed; medium = a public GA function body changed; low = additions, preview or undocumented APIs, strings, telemetry.
+Use it to answer "did Office.js change on the CDN?" and "which APIs changed in build X?". Shares are measured across sampled CDN edge responses, not across users. Severity: high = a public GA API was removed, its kind or arity changed, an enum value was removed or changed, or a file was removed; medium = the body of a public GA function changed; low = everything else: new APIs and enum values, preview and undocumented APIs, changes in non-API files (strings, telemetry). An incomplete reflection never produces high.
 
 Limits: only the JavaScript layer served from the CDN is visible. Breakages inside native Office hosts (Outlook, Excel win32, Mac) are not. The site publishes metadata and API-surface diffs only, never Microsoft's code. Not affiliated with Microsoft.
 
@@ -54,6 +66,8 @@ Limits: only the JavaScript layer served from the CDN is visible. Breakages insi
 ${rollouts.length ? rollouts.map(rolloutLine).join("\n") : "- No rollouts recorded yet."}
 
 ## Recently changed APIs
+
+One page per API type (class, enum, namespace object); a line counts changes to the type itself and to its members.
 
 ${types.length ? types.slice(0, 20).map(typeLine).join("\n") : "- No API changes recorded yet."}
 

@@ -21,6 +21,8 @@
   - `[Bug Fix]` Preview API changes saved before classification showed as High
   - `[Bug Fix]` Overlapping crawls created duplicate rollouts: crawl lock in MongoDB, unique rolling index
   - `[Style]` Rollout list columns no longer shift with the counts
+  - `[Bug Fix]` SEO: preview image on every page, honest llms.txt and sitemap
+  - `[Feature]` Structured data (JSON-LD) on every page
 
 - **2026-10-15** — [2026-10-15.md](2026-10-15.md)
   - `[Infra]` Repository, CI and automatic deploys to the VPS

@@ -14,16 +14,24 @@ become absolute. The variable is server-only: client components do not have it.
 ## Page metadata
 
 Next merges metadata **shallowly**: a page that sets `alternates` or `openGraph` replaces the layout's whole
-object. So `pageMeta({ path, title, description, type })` builds them completely: canonical, RSS alternate,
-Open Graph (`siteName`, `locale`, `url`, `type`), Twitter `summary_large_image`.
+object — including the root's file-based `opengraph-image`, which would then reach only `/`. So
+`pageMeta({ path, title, description, type })` builds them completely: canonical, RSS alternate, Open Graph
+(`siteName`, `locale`, `url`, `type`, the shared image with size and alt), Twitter `summary_large_image` with
+the same image.
 
 | Page | title | canonical | Other |
 |---|---|---|---|
 | `/` | `silentship — know when Office.js changes on the CDN` (absolute) | `/` | JSON-LD `WebSite` |
-| `/rollouts/<channel>/<group>` | `Office.js <build> rollout (production\|beta) — silentship` | `/rollouts/<channel>/<group>` | `og:type=article`; description with share, files, API changes; a missing rollout → `noindex` + 404 |
-| `/reference` | `Office.js API changes by type — silentship` | `/reference` | hub, grouped by namespace |
+| `/rollouts/<channel>/<group>` | `Office.js <build> rollout (production\|beta) — silentship` | `/rollouts/<channel>/<group>` | `og:type=article`; description with share, files, API changes; JSON-LD `TechArticle` (about `SoftwareApplication` Office.js with `softwareVersion` = the build; published = first seen, modified = completed/last seen) + `BreadcrumbList`; a missing rollout → `noindex` + 404 |
+| `/reference` | `Office.js API changes by type — silentship` | `/reference` | hub, grouped by namespace; JSON-LD `CollectionPage` with an `ItemList` of every type page + `BreadcrumbList` |
 | `/reference/<type>` | `<API> <what happened> in Office.js <channels> — silentship`, e.g. `Excel.SensitivityLabelAbacAttribute removed in Office.js beta`; several changed paths → `<type>: N API changes in Office.js` | `/reference/<type>` | `og:type=article`; the h1 repeats the title; JSON-LD `TechArticle` + `BreadcrumbList`; another spelling → 308; unknown → 404 + `noindex` |
 | `/privacy` | `Privacy policy — silentship` | `/privacy` | — |
+| any unknown URL | `Page not found — silentship` (`app/not-found.js`) | — | 404 + `noindex` (added by Next) |
+
+**Structured data** is built by `frontend/lib/jsonLd.js` (`website`, `techArticle`, `breadcrumbs`,
+`collectionPage`, `officeJs`) from the same title, description and dates as the page's metadata, and rendered
+by `components/JsonLd.js`, which escapes `<` so no value can close the script tag. A new page type gets its
+JSON-LD from these builders, not hand-written objects.
 
 **Open Graph image** — `app/opengraph-image.js` (`next/og`, 1200×630, generated at build time), one for the whole site.
 
@@ -33,14 +41,15 @@ Open Graph (`siteName`, `locale`, `url`, `type`), Twitter `summary_large_image`.
 would be baked in empty; this way new rollouts appear without a redeploy. Contents:
 
 - `/` — `lastmod` = the newest change of any rollout, `hourly`, priority 1;
-- `/privacy` — `yearly`, 0.2;
+- `/privacy` — `lastmod` = `SITE.updated`, `yearly`, 0.2;
 - every rollout group from `/api/sitemap` — `lastmod` = max(`lastSeenAt`, `completedAt`), `daily`, priority
   0.8 for prod and 0.6 for beta;
 - `/reference` — `lastmod` = the newest type, `daily`, 0.7;
 - every API type page — `lastmod` = the newest change of its rollouts, `weekly`, 0.5.
 
-The protocol limit is 50,000 URLs per file (`$limit` in `sitemapGroups`); far away. A down backend gives a
-sitemap with the two static URLs instead of an error.
+The protocol limit is 50,000 URLs per file (`$limit` in `sitemapGroups`); far away. A down backend (e.g. mid-deploy)
+gives an error (500), not a sitemap with only the static URLs: crawlers retry an error, while an empty 200
+reads as "every rollout and type page is gone".
 
 ## `/robots.txt`
 
@@ -52,8 +61,10 @@ from `SITE_URL`.
 
 `app/llms.txt/route.js` — Markdown per [llmstxt.org](https://llmstxt.org): what silentship is, how to read
 share and severity, the limits (only the CDN's JavaScript layer, no Microsoft code), links to the changelog,
-RSS and sitemap, the 20 newest rollout groups from `/api/rollouts` and the 20 most recently changed API types from `/api/types`. Rendered per request,
-`text/plain; charset=utf-8`. The JSON API is deliberately not listed: `/api/` is disallowed in `robots.txt`.
+RSS and sitemap, the 20 newest rollout groups from `/api/rollouts` and the 20 most recently changed API types from `/api/types`. Each rollout line has the
+from-build, first-seen date, files, state, severity and API change count; each type line counts changes to the
+type and its members. The severity text follows the table in [`api-surface.md`](api-surface.md). Rendered per
+request, `text/plain; charset=utf-8`; a down backend gives 503 with `Retry-After`, never "no rollouts recorded". The JSON API is deliberately not listed: `/api/` is disallowed in `robots.txt`.
 
 ## After deploying (manual, outside the code)
 

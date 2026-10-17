@@ -1,19 +1,20 @@
 import Link from "next/link";
+import JsonLd from "@/components/JsonLd";
 import { ChannelTag, Severity } from "@/components/ui";
 import { apiGetOr } from "@/lib/api";
 import { statusLabel, typeHref } from "@/lib/apiType";
 import { fmtDate, KIND_LABEL } from "@/lib/format";
+import { breadcrumbs, collectionPage } from "@/lib/jsonLd";
 import { pageMeta } from "@/lib/site";
 
 // New types appear after every rollout with API changes; never prerender at build time.
 export const dynamic = "force-dynamic";
 
-export const metadata = pageMeta({
-  path: "/reference",
-  title: "Office.js API changes by type",
-  description:
-    "Every Office.js class, enum and function whose public API changed on the Microsoft CDN: removals, renames, new APIs and changed enum values in Excel, Word, PowerPoint, Outlook and OneNote, build by build.",
-});
+const TITLE = "Office.js API changes by type";
+const DESCRIPTION =
+  "Every Office.js class, enum and function whose public API changed on the Microsoft CDN: removals, renames, new APIs and changed enum values in Excel, Word, PowerPoint, Outlook and OneNote, build by build.";
+
+export const metadata = pageMeta({ path: "/reference", title: TITLE, description: DESCRIPTION });
 
 export default async function ReferenceHub() {
   const { types } = await apiGetOr("/api/types", { types: [] });
@@ -26,6 +27,17 @@ export default async function ReferenceHub() {
 
   return (
     <article className="release">
+      <JsonLd
+        data={[
+          collectionPage({
+            path: "/reference",
+            name: TITLE,
+            description: DESCRIPTION,
+            items: types.map((t) => [t.type, typeHref(t.type)]),
+          }),
+          breadcrumbs([["Office.js API changes", "/reference"]]),
+        ]}
+      />
       <h1 className="type-title">Office.js API changes</h1>
       <p className="type-lede">
         Every class, enum and function whose public API changed in an Office.js build on the Microsoft CDN, newest

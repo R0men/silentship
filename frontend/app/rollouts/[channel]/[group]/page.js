@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import RolloutView from "@/components/RolloutView";
+import JsonLd from "@/components/JsonLd";
 import { LiveRefresh } from "@/components/Live";
 import { ChannelTag, Severity, ShareBar, TimeAgo } from "@/components/ui";
 import { apiGet } from "@/lib/api";
 import { fmtDate, groupTitle, pct, STATUS_LABEL } from "@/lib/format";
+import { breadcrumbs, officeJs, techArticle } from "@/lib/jsonLd";
 import { pageMeta } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
@@ -15,16 +17,35 @@ async function load(params) {
   return apiGet(`/api/rollouts/${channel}/${encodeURIComponent(decodeURIComponent(group))}`);
 }
 
+/** Path, title and description: one source for the metadata and the structured data. */
+function describe(r) {
+  const channel = r.channel === "beta" ? "beta" : "production";
+  return {
+    path: `/rollouts/${r.channel}/${encodeURIComponent(r.group)}`,
+    title: `Office.js ${groupTitle(r)} rollout (${channel})`,
+    description: `Office.js ${groupTitle(r)} on ${pct(r.status === "complete" ? 1 : r.share)} of sampled CDN edges across ${r.files} files, ${r.apiChangeCount} API changes. First seen ${fmtDate(r.firstSeenAt)}.`,
+  };
+}
+
+function jsonLd(r) {
+  const { path, title, description } = describe(r);
+  return [
+    techArticle({
+      path,
+      headline: title,
+      description,
+      datePublished: r.firstSeenAt,
+      dateModified: r.completedAt ?? r.lastSeenAt,
+      about: officeJs(r.toBuild),
+    }),
+    breadcrumbs([[title, path]]),
+  ];
+}
+
 export async function generateMetadata({ params }) {
   const r = await load(params).catch(() => null);
   if (!r) return { title: "Rollout not found", robots: { index: false } };
-  const channel = r.channel === "beta" ? "beta" : "production";
-  return pageMeta({
-    path: `/rollouts/${r.channel}/${encodeURIComponent(r.group)}`,
-    type: "article",
-    title: `Office.js ${groupTitle(r)} rollout (${channel})`,
-    description: `Office.js ${groupTitle(r)} on ${pct(r.status === "complete" ? 1 : r.share)} of sampled CDN edges across ${r.files} files, ${r.apiChangeCount} API changes. First seen ${fmtDate(r.firstSeenAt)}.`,
-  });
+  return pageMeta({ ...describe(r), type: "article" });
 }
 
 export default async function RolloutPage({ params }) {
@@ -34,6 +55,7 @@ export default async function RolloutPage({ params }) {
 
   return (
     <article className="release">
+      <JsonLd data={jsonLd(r)} />
       <LiveRefresh />
       <Link className="back" href="/#rollouts">
         ← Rollouts
