@@ -49,6 +49,13 @@ built — [`seo.md`](seo.md), [`web.md`](web.md).
 Channels run one after another (they share the git archive); then `notifyPending()` and
 `pruneUnconfirmed()` (`backend/src/cli.js`).
 
+**One crawler per database.** Two overlapping crawls do not see each other's new rollouts and create
+duplicates. An in-process flag skips a tick while this process still crawls; the `locks` document
+`crawl` (`acquireLock` in `backend/src/db.js`: an atomic `findOneAndUpdate` with `expiresAt`, 15 minutes,
+renewed before each channel, released on exit and on SIGTERM/SIGINT) makes any other process — a manual
+`npm run crawl` next to the service, another machine — skip its tick. A unique index on rolling rollouts
+`{channel, region, path, toSha}` is the backstop ([`data.md`](data.md)).
+
 ## Invariants that cut across modules
 
 - **Microsoft's code never reaches the site or this repository.** The site shows only metadata and

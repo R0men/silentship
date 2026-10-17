@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { config } from "./config.js";
-import { closeDb, db } from "./db.js";
+import { acquireLock, closeDb, db, releaseLock } from "./db.js";
 import { GitArchive } from "./archive/git-archive.js";
 import { runChannel } from "./pipeline/run.js";
 import { notifyPending, pruneUnconfirmed, sendPreviewEmails } from "./notify/alerts.js";
@@ -9,15 +9,42 @@ import { reclassifyStored } from "./analysis/reclassify.js";
 
 let running = false;
 
-/** One crawl of every channel. Channels run sequentially: they share one git archive. */
+/** The crawl lock outlives a normal crawl; it is renewed before each channel. */
+const CRAWL_LOCK = "crawl";
+const CRAWL_LOCK_TTL_MS = 15 * 60_000;
+
+// A restart (deploy, Ctrl+C) mid-crawl hands the lock back at once instead of blocking the next process
+// until it expires.
+for (const signal of ["SIGTERM", "SIGINT"]) {
+  process.once(signal, () => {
+    setTimeout(() => process.exit(0), 5000).unref();
+    const release = running ? releaseLock(CRAWL_LOCK).catch(() => {}) : Promise.resolve();
+    void release.finally(() => process.exit(0));
+  });
+}
+
+/**
+ * One crawl of every channel. Channels run sequentially: they share one git archive. Overlapping crawls
+ * create duplicate rollouts, so `running` covers this process and the database lock covers every other.
+ */
 async function crawlOnce(archive) {
   if (running) {
     console.warn("Previous crawl still running; skipping this tick");
     return;
   }
   running = true;
+  let locked = false;
   try {
+    locked = await acquireLock(CRAWL_LOCK, CRAWL_LOCK_TTL_MS);
+    if (!locked) {
+      console.warn("Another process is crawling this database; skipping this tick");
+      return;
+    }
     for (const channel of config.channels) {
+      if (!(await acquireLock(CRAWL_LOCK, CRAWL_LOCK_TTL_MS))) {
+        console.warn(`Crawl lock lost before ${channel}; stopping this crawl`);
+        return;
+      }
       try {
         await runChannel(channel, archive);
       } catch (err) {
@@ -31,6 +58,7 @@ async function crawlOnce(archive) {
       console.error("notifications failed:", err);
     }
   } finally {
+    if (locked) await releaseLock(CRAWL_LOCK).catch((err) => console.error("releasing crawl lock failed:", err));
     running = false;
   }
 }

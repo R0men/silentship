@@ -29,10 +29,11 @@ node backend/src/cli.js mail-preview you@company.com                 # preview e
 npm run reclassify -w backend                                        # classify stored API changes saved without a status (start does it too)
 ```
 
-> ⚠️ `npm start` and `npm run crawl` on your machine against a **production** `MONGODB_URI` write to the same
-> database as production, but into your **local** `data/archive`. The archives diverge: production will not
-> have the bodies of versions seen locally and will skip their API diffs. For local crawls use `npm run dev`
-> or a separate database (`MONGODB_DB`).
+> ⚠️ Keep the production `MONGODB_URI` out of your local `.env`. `npm start` and `npm run crawl` on your
+> machine against it write to the production database but into your **local** `data/archive`: the archives
+> diverge, and production will not have the bodies of versions seen locally and will skip their API diffs.
+> The crawl lock stops two crawls from overlapping, not this. Locally use `npm run dev` (in-memory) or a
+> separate database. For reading production data from scripts, use a MongoDB user with the `read` role only.
 
 ## Environment variables
 

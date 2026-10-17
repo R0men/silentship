@@ -493,7 +493,8 @@ h2 {
 }
 .row {
   display: grid;
-  grid-template-columns: 90px minmax(0, 1fr) 180px auto 24px;
+  /* Fixed tracks: every row is its own grid, so an auto column would shift with the digit count. */
+  grid-template-columns: 90px minmax(0, 1fr) 180px 168px 24px;
   align-items: center;
   gap: 24px;
   padding: 20px 0;
@@ -529,12 +530,17 @@ h2 {
   font-variant-numeric: tabular-nums;
 }
 .row-counts {
-  display: flex;
-  gap: 28px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
   font-size: 13.5px;
   color: var(--faint);
+  white-space: nowrap;
 }
 .row-counts b {
+  display: inline-block;
+  min-width: 3ch;
+  text-align: right;
   color: var(--text);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -869,6 +875,10 @@ h2 {
   }
   .row-arrow {
     display: none;
+  }
+  .row-counts {
+    grid-template-columns: auto auto;
+    justify-content: start;
   }
   .table .tr,
   .table.hosts-table .tr {

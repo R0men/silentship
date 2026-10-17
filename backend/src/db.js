@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { hostname } from "node:os";
 import { MongoClient, ObjectId } from "mongodb";
 import { config } from "./config.js";
 
@@ -26,6 +28,11 @@ async function ensureIndexes(c) {
     c.snapshots.createIndex({ fetchedAt: 1 }, { expireAfterSeconds: 90 * 24 * 3600 }),
     c.fileStates.createIndex({ channel: 1, region: 1, path: 1 }, { unique: true }),
     c.rollouts.createIndex({ channel: 1, region: 1, path: 1, status: 1 }),
+    // A backstop for the crawl lock: one rolling rollout per version of a file.
+    c.rollouts.createIndex(
+      { channel: 1, region: 1, path: 1, toSha: 1 },
+      { unique: true, partialFilterExpression: { status: "rolling" }, name: "one_rolling_per_version" },
+    ),
     c.rollouts.createIndex({ channel: 1, group: 1 }),
     c.rollouts.createIndex({ firstSeenAt: -1 }),
     c.rollouts.createIndex({ notifiedAt: 1 }),
@@ -53,6 +60,7 @@ async function ensureIndexes(c) {
  *  subscribers — email, token, channels, minSeverity, embedded `watchItems`
  *  deliveries  — outbox: one rendered alert per recipient (email or Slack), sent and retried by
  *                flushDeliveries (TTL 90 days)
+ *  locks       — `{_id, owner, expiresAt}`: the crawl lock shared by every process on this database
  */
 export async function db() {
   if (!collections) {
@@ -68,6 +76,7 @@ export async function db() {
       apiChanges: d.collection("apiChanges"),
       subscribers: d.collection("subscribers"),
       deliveries: d.collection("deliveries"),
+      locks: d.collection("locks"),
     };
     await ensureIndexes(collections);
   }
@@ -78,6 +87,36 @@ export async function closeDb() {
   await client?.close();
   client = undefined;
   collections = undefined;
+}
+
+/** Identifies this process in a lock: host, pid and a random suffix (a restarted pid is a new owner). */
+const LOCK_OWNER = `${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
+
+/**
+ * Takes (or renews) a lock shared by every process on this database, so two crawlers — a service and a
+ * manual run, or two machines — never interleave. The lock expires after `ttlMs` so a crashed holder does
+ * not block forever. Returns false when another live owner holds it.
+ */
+export async function acquireLock(name, ttlMs) {
+  const { locks } = await db();
+  const now = new Date();
+  try {
+    await locks.findOneAndUpdate(
+      { _id: name, $or: [{ owner: LOCK_OWNER }, { expiresAt: { $lte: now } }] },
+      { $set: { owner: LOCK_OWNER, expiresAt: new Date(now.getTime() + ttlMs), takenAt: now } },
+      { upsert: true },
+    );
+    return true;
+  } catch (err) {
+    // The filter missed because a live owner holds it, so the upsert collided with its _id.
+    if (err?.code === 11000) return false;
+    throw err;
+  }
+}
+
+export async function releaseLock(name) {
+  const { locks } = await db();
+  await locks.deleteOne({ _id: name, owner: LOCK_OWNER });
 }
 
 /** Parses a hex id from a URL; null when malformed. */

@@ -19,6 +19,8 @@
   - `[Feature]` Umami events: `open_rollout`, `view_rollouts`, `subscribe_start`
   - `[Feature]` API type pages `/reference` with status, advice, error messages and history
   - `[Bug Fix]` Preview API changes saved before classification showed as High
+  - `[Bug Fix]` Overlapping crawls created duplicate rollouts: crawl lock in MongoDB, unique rolling index
+  - `[Style]` Rollout list columns no longer shift with the counts
 
 - **2026-10-15** — [2026-10-15.md](2026-10-15.md)
   - `[Infra]` Repository, CI and automatic deploys to the VPS
