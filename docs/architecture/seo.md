@@ -22,7 +22,7 @@ the same image.
 | Page | title | canonical | Other |
 |---|---|---|---|
 | `/` | `silentship — know when Office.js changes on the CDN` (absolute) | `/` | JSON-LD `WebSite` |
-| `/rollouts/<channel>/<group>` | `Office.js <build> rollout (production\|beta) — silentship` | `/rollouts/<channel>/<group>` | `og:type=article`; description with share, files, API changes; JSON-LD `TechArticle` (about `SoftwareApplication` Office.js with `softwareVersion` = the build; published = first seen, modified = completed/last seen) + `BreadcrumbList`; a missing rollout → `noindex` + 404 |
+| `/rollouts/<channel>/<group>` | `Office.js <build> rollout (production\|beta) — silentship` | `/rollouts/<channel>/<group>` | `og:type=article`; description with share, files, API changes; JSON-LD `TechArticle` (about a `Thing` "Office.js <build>" — not `SoftwareApplication`, which Google rejects without offers or ratings; published = first seen, modified = completed/last seen) + `BreadcrumbList`; a missing rollout → `noindex` + 404 |
 | `/reference` | `Office.js API changes by type — silentship` | `/reference` | hub, grouped by namespace; JSON-LD `CollectionPage` with an `ItemList` of every type page + `BreadcrumbList` |
 | `/reference/<type>` | `<API> <what happened> in Office.js <channels> — silentship`, e.g. `Excel.SensitivityLabelAbacAttribute removed in Office.js beta`; several changed paths → `<type>: N API changes in Office.js` | `/reference/<type>` | `og:type=article`; the h1 repeats the title; JSON-LD `TechArticle` + `BreadcrumbList`; another spelling → 308; unknown → 404 + `noindex` |
 | `/privacy` | `Privacy policy — silentship` | `/privacy` | — |

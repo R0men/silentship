@@ -42,14 +42,15 @@ export function techArticle({ path, headline, description, datePublished, dateMo
   };
 }
 
-/** Office.js at one build: what a rollout page is about. */
+/**
+ * Office.js (at one build): what a rollout page is about. A plain Thing, not SoftwareApplication: Google
+ * reads that as a software-app rich result and rejects it without offers or ratings, which we cannot give.
+ */
 export function officeJs(build) {
   return {
-    "@type": "SoftwareApplication",
-    name: "Office.js",
-    applicationCategory: "DeveloperApplication",
-    ...(build ? { softwareVersion: build } : {}),
-    url: "https://learn.microsoft.com/office/dev/add-ins/",
+    "@type": "Thing",
+    name: build ? `Office.js ${build}` : "Office.js",
+    sameAs: "https://learn.microsoft.com/office/dev/add-ins/",
   };
 }
 
