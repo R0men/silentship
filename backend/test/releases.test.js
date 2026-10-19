@@ -126,6 +126,8 @@ describe("releases", () => {
   it("show two cards, each with both endpoints", async () => {
     const { channels } = await q.overview();
     expect(channels.map((c) => c.channel)).toEqual(["prod", "beta"]);
+    // The newest release, for a card with nothing rolling.
+    expect(channels[0].latest).toMatchObject({ channel: "prod", group: "16.0.8" });
     expect(channels[0].endpoints).toMatchObject({
       legacy: { channel: "prod", build: "16.0.5" },
       onecdn: { channel: "onecdn-prod", build: "16.0.5" },

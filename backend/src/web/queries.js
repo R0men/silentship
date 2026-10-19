@@ -723,6 +723,8 @@ export async function overview() {
           : main.lastStatus,
       samples: main.samples,
       lastChangeAt: lastChange?.firstSeenAt ?? null,
+      // The newest release, so a quiet card still shows where the last one ended (complete, pulled back).
+      latest: lastChange ?? null,
       endpoints: { legacy, onecdn },
       active,
     });

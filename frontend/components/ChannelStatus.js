@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { channelLabel, CHANNELS, ENDPOINTS, groupTitle, pct } from "@/lib/format";
+import { channelLabel, CHANNELS, ENDPOINTS, fmtDate, groupTitle, pct, STATUS_LABEL } from "@/lib/format";
 import { useLive } from "./Live";
 import { ShareBar, TimeAgo } from "./ui";
 
@@ -69,7 +69,22 @@ function Channel({ c }) {
           <ShareBar share={g.share} />
         </Link>
       ))}
+      {c.active.length === 0 && c.latest && <LatestRelease track={c.channel} g={c.latest} />}
     </div>
+  );
+}
+
+/** Nothing rolling: the newest release and how it ended, so the card is never just a number. */
+function LatestRelease({ track, g }) {
+  const complete = g.status === "complete";
+  return (
+    <Link className="channel-rollout" href={`/rollouts/${track}/${encodeURIComponent(g.group)}`}>
+      <span>
+        {STATUS_LABEL[g.status]} <span className="mono">{groupTitle(g)}</span>
+      </span>
+      <span className="muted">{complete && g.completedAt ? fmtDate(g.completedAt) : pct(g.share)}</span>
+      <ShareBar share={complete ? 1 : g.share} status={g.status} />
+    </Link>
   );
 }
 

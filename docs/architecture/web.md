@@ -8,7 +8,7 @@ Code: `backend/src/web/server.js` (Fastify, routes), `queries.js` (read models),
 | Route | What | Proxied by Next |
 |---|---|---|
 | `GET /health` | 200/503 for uptime monitors: every channel finished a run within `HEALTH_STALE_MINUTES` (20), the last run did not fail, none has been running for more than twice that (40 min) | `/health` |
-| `GET /api/overview` | Per track (`prod`, `beta`): stable build, last run, `endpoints` (legacy and OneCDN: build, last run), active releases; 30-day stats (distinct builds, and builds or other changes with High severity — not groups) | `/api/*` |
+| `GET /api/overview` | Per track (`prod`, `beta`): stable build, last run, `endpoints` (legacy and OneCDN: build, last run), active releases, `latest` (the newest release, shown when nothing rolls); 30-day stats (distinct builds, and builds or other changes with High severity — not groups) | `/api/*` |
 | `GET /api/rollouts?channel&severity&before&limit` | Releases (`listReleases`), newest first; `channel` is the track; `before` is a `firstSeenAt` cursor; `limit` 1–100 (30) | `/api/*` |
 | `GET /api/rollouts/:track/:group` | One release (`getRelease`): both `endpoints`, hosts, share history and API changes of the primary group (the same `Office.*` change from several files is one row with the file list), `differentFiles`, `flags` (the `loader-flags-changed` notice per endpoint, empty unless the flags changed), `loader`: `identical`, `flags-only` (same `bodyHashSansFlags`), `different`. 404 for a OneCDN channel | `/api/*` |
 | `GET /api/types` | Every API type changed by a confirmed rollout (`listApiTypes`): channels, kinds, highest severity, dates | `/api/*` |

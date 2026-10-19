@@ -19,7 +19,9 @@ Code: `frontend/` — Next.js 16 (App Router, Turbopack), React 19, JavaScript. 
 **One UI for both endpoints.** The crawler has four channels, but the site shows two tracks — production and
 beta (`CHANNELS` in `lib/format.js`) — because the legacy and OneCDN endpoints serve byte-identical host files
 (`ENDPOINTS`: `appsforoffice.microsoft.com`, `officeapis.public.onecdn.static.microsoft`). The home page has two
-cards; under the build, "Same build on legacy and onecdn" or each endpoint's build. The list has one row per
+cards; under the build, "Same build on legacy and onecdn" or each endpoint's build, then a share bar per
+release in flight — or, when nothing rolls, the newest release with how it ended ("Complete 16.0.20606.15070",
+completion time, a full bar). The list has one row per
 track and build; a row carries an endpoint badge (`divergence`: "legacy only", "onecdn only", "N files
 differ", "loader flags changed") only when the endpoints diverge. There is no endpoint filter.
 

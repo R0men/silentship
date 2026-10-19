@@ -8,10 +8,9 @@
   folders behind a symlink, with the unit's `WorkingDirectory` pointing at the symlink.
 - 🔵 **No automated backups of `data/archive`.** The archive cannot be rebuilt after the fact
   (`../SETUP.md`, "Backups").
-- 🔵 **OneCDN channels after deploy:** check that the production `CHANNELS` includes `onecdn-prod,onecdn-beta`
-  (an explicit `CHANNELS=prod,beta` keeps them off) and that their first runs logged "baseline recorded".
-  Compare edge spread of both endpoints from the server by the `a=` field of `Akamai-Request-BC`
-  (`architecture/cdn-facts.md`).
+- 🔵 **OneCDN edge spread:** compare how many distinct edges each endpoint reaches from the server, by the
+  `a=` field of `Akamai-Request-BC` (`architecture/cdn-facts.md`); from one home network both landed on the
+  same edge.
 - 🔵 **Operator details on `/privacy` are a placeholder** (`frontend/lib/site.js`: `operator`).
 - 🔵 **Sitemap status in Google Search Console** showed "Couldn't fetch" right after submitting
   (2026-10-15) although Googlebot fetched `/sitemap.xml` with a 200 — check again. Not yet submitted to Bing
@@ -25,6 +24,7 @@
   - `[Feature]` One alert per build across both endpoints (email and Slack)
   - `[Feature]` One UI for both endpoints: two tracks, one page per build, divergence shown only when it exists
   - `[Style]` Neutral live badge in server HTML, footer links, both endpoints in the description
+  - `[Feature]` Channel card shows the latest release when nothing rolls out
 
 - **2026-10-17** — [2026-10-17.md](2026-10-17.md)
   - `[Feature]` Umami events: `open_rollout`, `view_rollouts`, `subscribe_start`
