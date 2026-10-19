@@ -5,7 +5,7 @@ import JsonLd from "@/components/JsonLd";
 import { LiveRefresh } from "@/components/Live";
 import { ChannelTag, Severity, ShareBar, TimeAgo } from "@/components/ui";
 import { apiGet } from "@/lib/api";
-import { fmtDate, groupTitle, pct, STATUS_LABEL } from "@/lib/format";
+import { channelLabel, CHANNELS, ENDPOINTS, fmtDate, groupTitle, pct, STATUS_LABEL } from "@/lib/format";
 import { breadcrumbs, officeJs, techArticle } from "@/lib/jsonLd";
 import { pageMeta } from "@/lib/site";
 
@@ -13,13 +13,13 @@ export const dynamic = "force-dynamic";
 
 async function load(params) {
   const { channel, group } = await params;
-  if (!["prod", "beta"].includes(channel)) return null;
+  if (!(channel in CHANNELS)) return null;
   return apiGet(`/api/rollouts/${channel}/${encodeURIComponent(decodeURIComponent(group))}`);
 }
 
 /** Path, title and description: one source for the metadata and the structured data. */
 function describe(r) {
-  const channel = r.channel === "beta" ? "beta" : "production";
+  const channel = channelLabel(r.channel).toLowerCase();
   return {
     path: `/rollouts/${r.channel}/${encodeURIComponent(r.group)}`,
     title: `Office.js ${groupTitle(r)} rollout (${channel})`,
@@ -40,6 +40,84 @@ function jsonLd(r) {
     }),
     breadcrumbs([[title, path]]),
   ];
+}
+
+/** loader-flags-changed: the notice up to the docs reference, which becomes a link. */
+function FlagsNotice({ flags }) {
+  const [text] = flags.notice.split(" See Microsoft's");
+  return (
+    <p className="flags-notice">
+      {text} <a href={flags.docs}>Microsoft&apos;s migration notes</a>
+    </p>
+  );
+}
+
+/** One endpoint's progress: share, bar and when it completed, or why there is no bar. */
+function EndpointProgress({ name, e }) {
+  const label = ENDPOINTS[name];
+  const head = (
+    <div className="endpoint-head">
+      <span className="endpoint-name">{label.label}</span>
+      <span className="faint mono">{label.host}</span>
+    </div>
+  );
+  if (!e || e.status === "stable") {
+    return (
+      <div className="endpoint">
+        {head}
+        <div className="muted">{e ? "served it when monitoring of this endpoint began" : "not seen yet"}</div>
+      </div>
+    );
+  }
+  return (
+    <div className="endpoint">
+      {head}
+      <div className="endpoint-figure">
+        <b>{pct(e.share)}</b>
+        <span className="muted">
+          {e.status === "complete"
+            ? `complete${e.completedAt ? ` ${fmtDate(e.completedAt)}` : ""}`
+            : e.status === "abandoned"
+              ? "pulled back"
+              : "of sampled edges (average over the last hour)"}
+        </span>
+      </div>
+      <ShareBar share={e.share} status={e.status} />
+    </div>
+  );
+}
+
+const LOADER_NOTE = {
+  identical: "office.js is identical too.",
+  "flags-only": "office.js is identical except the security-default flags.",
+  different: "office.js differs beyond the security-default flags.",
+};
+
+/** Whether the endpoints serve the same host files for this build. */
+function EndpointFiles({ r }) {
+  if (!r.onecdnCrawled) return null;
+  if (!r.endpoints.legacy || !r.endpoints.onecdn) {
+    return <p className="note">Seen on {r.endpoints.legacy ? "legacy" : "onecdn"} only so far.</p>;
+  }
+  return (
+    <p className={`note ${r.differentFiles.length ? "endpoints-differ" : ""}`}>
+      {r.differentFiles.length ? (
+        <>
+          Host files that differ between endpoints:{" "}
+          {r.differentFiles.map((f, i) => (
+            <span key={f}>
+              {i > 0 && ", "}
+              <span className="mono">{f}</span>
+            </span>
+          ))}
+          .
+        </>
+      ) : (
+        "Host files byte-identical on both endpoints."
+      )}
+      {LOADER_NOTE[r.loader] && <span className="faint"> {LOADER_NOTE[r.loader]}</span>}
+    </p>
+  );
 }
 
 export async function generateMetadata({ params }) {
@@ -67,18 +145,30 @@ export default async function RolloutPage({ params }) {
       </div>
       <h1 className="release-build">{groupTitle(r)}</h1>
       {r.fromBuilds.length > 0 && <p className="note">from {r.fromBuilds.join(", ")}</p>}
+      {r.flags.map((f) => (
+        <FlagsNotice key={f.endpoint} flags={f} />
+      ))}
 
-      <div className="rollout-progress">
-        <div className="rollout-figure">
-          <span className="big">{pct(share)}</span>
-          <span className="muted">
-            {r.status === "complete"
-              ? "of sampled edges — rollout complete"
-              : "of sampled edges serve the new version (average over the last hour)"}
-          </span>
+      <h2 className="sr-only">Edges on new version</h2>
+      {r.onecdnCrawled ? (
+        <div className="endpoints">
+          <EndpointProgress name="legacy" e={r.endpoints.legacy} />
+          <EndpointProgress name="onecdn" e={r.endpoints.onecdn} />
         </div>
-        <ShareBar share={share} status={r.status} />
-      </div>
+      ) : (
+        <div className="rollout-progress">
+          <div className="rollout-figure">
+            <span className="big">{pct(share)}</span>
+            <span className="muted">
+              {r.status === "complete"
+                ? "of sampled edges — rollout complete"
+                : "of sampled edges serve the new version (average over the last hour)"}
+            </span>
+          </div>
+          <ShareBar share={share} status={r.status} />
+        </div>
+      )}
+      <EndpointFiles r={r} />
 
       <dl className="facts">
         <div>

@@ -12,6 +12,8 @@ let running = false;
 /** The crawl lock outlives a normal crawl; it is renewed before each channel. */
 const CRAWL_LOCK = "crawl";
 const CRAWL_LOCK_TTL_MS = 15 * 60_000;
+/** A crawl of every channel should fit the default 10-minute cron interval; a longer one skips ticks. */
+const CRAWL_BUDGET_MS = 10 * 60_000;
 
 // A restart (deploy, Ctrl+C) mid-crawl hands the lock back at once instead of blocking the next process
 // until it expires.
@@ -40,6 +42,7 @@ async function crawlOnce(archive) {
       console.warn("Another process is crawling this database; skipping this tick");
       return;
     }
+    const startedAt = Date.now();
     for (const channel of config.channels) {
       if (!(await acquireLock(CRAWL_LOCK, CRAWL_LOCK_TTL_MS))) {
         console.warn(`Crawl lock lost before ${channel}; stopping this crawl`);
@@ -51,6 +54,10 @@ async function crawlOnce(archive) {
         console.error(`[${channel}] crawl failed:`, err);
       }
     }
+    const tookMs = Date.now() - startedAt;
+    const took = `Crawled ${config.channels.length} channel(s) in ${(tookMs / 1000).toFixed(1)} s`;
+    if (tookMs > CRAWL_BUDGET_MS) console.warn(`${took}: longer than ${CRAWL_BUDGET_MS / 60_000} min, ticks will be skipped`);
+    else console.log(took);
     try {
       await notifyPending();
       await pruneUnconfirmed();

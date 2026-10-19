@@ -111,6 +111,8 @@ export default function RolloutView({ rollout }) {
         )}
       </div>
 
+      {/* The visible label is the tab (a button), which cannot hold a heading. */}
+      <h2 className="sr-only">{tab === "hosts" ? `Files (${rollout.hosts.length})` : `API changes (${rollout.apiChanges.length})`}</h2>
       {tab === "hosts" ? (
         <HostsTable hosts={rollout.hosts} />
       ) : changes.length ? (

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { track, trackOnce } from "@/lib/analytics";
-import { groupTitle, pct, STATUS_LABEL } from "@/lib/format";
+import { CHANNELS, divergence, groupTitle, pct, STATUS_LABEL } from "@/lib/format";
 import { ChannelTag, Segmented, Severity, ShareBar, TimeAgo } from "./ui";
 import { useToast } from "./Toast";
 import { useLive, useLiveEvent } from "./Live";
@@ -35,6 +35,7 @@ function Row({ g }) {
         <div className="row-title">
           <span className="mono">{groupTitle(g)}</span>
           <ChannelTag channel={g.channel} />
+          {divergence(g) && <span className="tag tag-diverged">{divergence(g)}</span>}
         </div>
         <div className="row-sub">
           {g.fromBuilds.length ? `from ${g.fromBuilds.join(", ")} · ` : ""}
@@ -142,11 +143,7 @@ export default function Rollouts({ initial, initialOverview }) {
           <Segmented
             label="Channel"
             value={channel}
-            options={[
-              ["all", "All"],
-              ["prod", "Production"],
-              ["beta", "Beta"],
-            ]}
+            options={[["all", "All"], ...Object.entries(CHANNELS).map(([c, { label }]) => [c, label])]}
             onChange={(v) => {
               setChannel(v);
               load({ reset: true, ch: v });

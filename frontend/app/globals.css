@@ -131,6 +131,25 @@ main {
 .footer p {
   margin: 4px 0;
 }
+.footer .footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin-top: 12px;
+}
+
+/* Headings for screen readers and crawlers where the visible label is a tab or a column header. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* ---------- Hero ---------- */
 
@@ -315,7 +334,7 @@ h1 {
 
 .status {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 48px 64px;
   padding: 48px 0 88px;
   border-top: 1px solid var(--hairline);
@@ -456,7 +475,8 @@ h2 {
 }
 .seg {
   display: inline-flex;
-  gap: 18px;
+  flex-wrap: wrap;
+  gap: 6px 18px;
 }
 .seg button {
   padding: 4px 0;
@@ -663,6 +683,68 @@ h2 {
   margin: 18px 0 0;
   color: var(--muted);
 }
+/* A release on both endpoints: one progress block each, side by side. */
+.endpoints {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px 48px;
+  max-width: 880px;
+  margin-top: 40px;
+}
+.endpoint-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.endpoint-name {
+  font-weight: 500;
+}
+.endpoint-head .mono {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.endpoint-figure {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+.endpoint-figure b {
+  font-size: clamp(32px, 4vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.endpoints-line {
+  margin-top: 6px;
+  font-size: 13px;
+}
+.endpoints-differ {
+  color: var(--medium);
+}
+.tag-diverged {
+  color: var(--medium);
+}
+/* loader-flags-changed: the one line on a rollout page that may matter more than the API diff. */
+.flags-notice {
+  max-width: 720px;
+  margin: 24px 0 0;
+  padding: 14px 16px;
+  border-left: 2px solid var(--high);
+  background: rgba(255, 91, 107, 0.06);
+  overflow-wrap: anywhere;
+}
+.flags-notice a {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
 .rollout-progress {
   max-width: 640px;
   margin-top: 40px;
@@ -862,6 +944,10 @@ h2 {
   }
   .rollout-figure .big {
     font-size: 44px;
+  }
+  .endpoints {
+    grid-template-columns: 1fr;
+    gap: 28px;
   }
   .tabs {
     margin-top: 40px;

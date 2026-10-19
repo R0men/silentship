@@ -5,8 +5,31 @@ Code: `backend/src/crawler/{loader,manifest,fetcher,build}.js`; orchestration �
 
 ## Channels and the manifest
 
-- Channels: `prod` → `https://appsforoffice.microsoft.com/lib/1/hosted/`, `beta` → `/lib/beta/hosted/`
-  (`CHANNEL_BASE_URL` in `backend/src/config.js`, selected with `CHANNELS`).
+- Channels (`CHANNEL_BASE_URL` in `backend/src/config.js`, selected with `CHANNELS`):
+
+  | Channel | Base URL | Endpoint |
+  |---|---|---|
+  | `prod` | `https://appsforoffice.microsoft.com/lib/1/hosted/` | legacy |
+  | `beta` | `https://appsforoffice.microsoft.com/lib/beta/hosted/` | legacy |
+  | `onecdn-prod` | `https://officeapis.public.onecdn.static.microsoft/1/` | OneCDN, recommended by Microsoft since 2026-09 |
+  | `onecdn-beta` | `https://officeapis.public.onecdn.static.microsoft/beta/` | OneCDN |
+
+  The loader takes its base path from its own `<script src>`, so an add-in on the OneCDN address loads every
+  host file from there. Same host file names, same version map, same bytes per build; only `office.js`
+  differs (security-default flags, below). `LEGACY_CHANNEL` pairs each OneCDN channel with its legacy one.
+- **Channels run one after another, legacy first**, so the new endpoint never delays the existing ones.
+  Each run logs its duration (`durationMs` in `runs`); a crawl of every channel that takes longer than
+  10 minutes is logged as a warning (it would skip cron ticks). Measured: 5–9 s per channel.
+- **The first run of a channel is a baseline** (`bootstrap` in `runs`): with no file state yet, what the CDN
+  serves becomes stable and no rollout is created ([`rollouts.md`](rollouts.md)).
+- **Loader security-default flags.** For `office.js` of every channel the crawler reads two top-level
+  assignments (`loaderFlags` in `crawler/loader.js`): `isOsfSecurityDefaultsEnabled` (`securityDefaults`) and
+  `osfLoadMsAjax` (`loadMsAjax`) — `true`/`false` (also minified `!0`/`!1`), `null` when not set. Only a bare
+  assignment of a literal counts; the loader's own `self.osfLoadMsAjax = b` does not. Legacy: `null/null`,
+  OneCDN: `true/false` (Trusted Types on, MicrosoftAjax not loaded). They are stored with the stable loader
+  (`fileStates.stableFlags`) and with every new loader version (`rollouts.fromFlags/toFlags`), together with
+  `bodyHashSansFlags` — the sha256 without the two assignments, equal for both endpoints of one build. A
+  change of the flags is the High event `loader-flags-changed` ([`alerts.md`](alerts.md)).
 - **The loader goes first.** `parseLoader` reads the version map and `OSF.ConstantNames` from `office.js`;
   `buildManifest` generates every host file plus the dependencies (`LOCALES`, default `en-us`).
 - The manifest is the **union** of the manifests of every loader version the edges returned, plus the

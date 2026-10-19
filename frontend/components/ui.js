@@ -8,7 +8,7 @@ export function Severity({ value }) {
 }
 
 export function ChannelTag({ channel }) {
-  return <span className={`tag ${channel === "beta" ? "tag-beta" : ""}`}>{channel}</span>;
+  return <span className={`tag ${channel.endsWith("beta") ? "tag-beta" : ""}`}>{channel}</span>;
 }
 
 /** Relative time; re-rendered on the client so server and browser clocks never disagree visibly. */

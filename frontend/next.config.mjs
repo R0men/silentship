@@ -14,6 +14,10 @@ const nextConfig = {
   poweredByHeader: false,
   // Lets a second build (e.g. a test instance) live next to the running one.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // One page per track: a build on the OneCDN endpoint is shown on the production or beta page.
+  async redirects() {
+    return [{ source: "/rollouts/onecdn-:track(prod|beta)/:group", destination: "/rollouts/:track/:group", statusCode: 301 }];
+  },
   // The browser only ever talks to this origin; Next forwards API calls to the backend.
   async rewrites() {
     return [

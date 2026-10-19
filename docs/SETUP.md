@@ -45,7 +45,7 @@ One `.env` at the repository root serves both workspaces; the template is `.env.
 | `MONGODB_DB` | the URI path, else `silentship` | database name |
 | `ARCHIVE_DIR` | `./data/archive` | private git archive of CDN files |
 | `REGION` | `local` | region tag on all data (e.g. `eu`) |
-| `CHANNELS` | `prod,beta` | which channels to crawl |
+| `CHANNELS` | `prod,beta,onecdn-prod,onecdn-beta` | which channels to crawl, in this order ([`crawler.md`](architecture/crawler.md)) |
 | `CRON` | `*/10 * * * *` | crawl schedule |
 | `FULL_REFRESH_HOURS` | `6` | how often the first sample is unconditional |
 | `SAMPLES` | `8` | samples per file per run (share precision = 1/SAMPLES) |

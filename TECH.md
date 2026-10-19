@@ -52,7 +52,9 @@ The loader picks the host file from `_host_Info` (from `window.external.GetHostI
 `window.name` or `sessionStorage`), not from the User-Agent. File names come from the
 `OSF.HostSpecificFileVersionMap` table inside the loader, so spoofing a User-Agent achieves nothing.
 
-1. Fetch the channel's `office.js` (`prod` → `/lib/1/hosted/`, `beta` → `/lib/beta/hosted/`).
+1. Fetch the channel's `office.js` (`prod` → `/lib/1/hosted/`, `beta` → `/lib/beta/hosted/` on
+   `appsforoffice.microsoft.com`; `onecdn-prod` → `/1/`, `onecdn-beta` → `/beta/` on
+   `officeapis.public.onecdn.static.microsoft`).
 2. Read `OSF.HostSpecificFileVersionMap` from it (AST, nothing executed) and generate the full list of host
    files (`excel-win32-16.01.js`, `outlook-web-16.00.js`, …). The matrix comes from the loader itself, so new
    hosts and platforms appear automatically.
@@ -67,6 +69,13 @@ The loader picks the host file from `_host_Info` (from `window.external.GetHostI
    requested `SAMPLES` times on fresh connections, and a change is a **rollout** with a share of edges, not
    a single "changed" event.
 7. **The beta channel** is watched in parallel: beta changes often precede production.
+7a. **Two endpoints.** Since September 2026 Microsoft recommends `officeapis.public.onecdn.static.microsoft`
+   and calls `appsforoffice.microsoft.com` legacy. Both are crawled (four channels, legacy first). Host files
+   are identical; only `office.js` differs by two security-default flags (`isOsfSecurityDefaultsEnabled`,
+   `osfLoadMsAjax`), which the crawler reads from every loader. A channel's first run is a baseline, not a
+   release. One build on both endpoints is alerted once (email and Slack), from legacy; OneCDN alerts only
+   what legacy cannot show ([`alerts.md`](docs/architecture/alerts.md)). The site shows two tracks, not four
+   channels: one page per build with both endpoints side by side ([`web.md`](docs/architecture/web.md)).
 8. **Several regions** (EU/US/Asia) are planned. All data already carries a `region` tag (`REGION`), but the
    crawler runs from one VPS.
 
@@ -77,7 +86,7 @@ The loader picks the host file from `_host_Info` (from `window.external.GetHostI
    `Word.*`, `PowerPoint.*`, `OneNote.*`, `Visio.*`, `Outlook`, DDA method names) with arity, enum values and
    a hash of the normalized function body. Trees are compared, not text.
 3. **Severity:**
-   - `High` — a public GA member disappeared, its type or arity changed, an enum value was removed or changed; a file was deleted.
+   - `High` — a public GA member disappeared, its type or arity changed, an enum value was removed or changed; a file was deleted; `office.js` changed its security-default flags (`loader-flags-changed`: on legacy this stops loading MicrosoftAjax for every add-in it reaches).
    - `Medium` — the body of a public GA function changed (not its signature).
    - `Low` — new API, preview and undocumented APIs, class constructors, strings, telemetry, a new file.
 4. **Watchlist:** a subscriber lists the APIs their add-in uses (`Office.context.ui.displayDialogAsync`,

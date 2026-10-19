@@ -20,7 +20,7 @@ export const metadata = {
   },
   description: DESCRIPTION,
   applicationName: SITE.name,
-  keywords: ["Office.js", "Office Add-ins", "Office.js CDN", "Office.js changelog", "appsforoffice", "Excel API", "Outlook add-in"],
+  keywords: ["Office.js", "Office Add-ins", "Office.js CDN", "Office.js changelog", "appsforoffice", "OneCDN", "Excel API", "Outlook add-in"],
   alternates: { types: RSS },
   openGraph: { type: "website", siteName: SITE.name, locale: "en_US", url: "/", description: DESCRIPTION },
   twitter: { card: "summary_large_image" },
@@ -51,12 +51,15 @@ export default function RootLayout({ children }) {
             <main>{children}</main>
             <footer className="footer">
               <p>
-                Watches the JavaScript layer served from <span className="mono">appsforoffice.microsoft.com</span>.
-                Breakages inside native hosts (Outlook, Excel win32, …) are not visible here.
+                Watches the JavaScript layer served from both endpoints: <span className="mono">appsforoffice.microsoft.com</span>{" "}
+                (legacy) and <span className="mono">officeapis.public.onecdn.static.microsoft</span>. Breakages inside
+                native hosts (Outlook, Excel win32, …) are not visible here.
               </p>
-              <p>
-                Not affiliated with Microsoft. Metadata and API-surface diffs only — no Microsoft code. ·{" "}
+              <p>Not affiliated with Microsoft. Metadata and API-surface diffs only — no Microsoft code.</p>
+              <p className="footer-links">
                 <Link href="/privacy">Privacy</Link>
+                <a href={SITE.repo}>GitHub</a>
+                <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>
               </p>
             </footer>
           </ToastProvider>

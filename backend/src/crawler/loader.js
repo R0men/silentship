@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { parse } from "@babel/parser";
 
 import { walk } from "../util/ast.js";
@@ -91,4 +92,55 @@ export function parseLoader(source) {
     constants,
     scriptRefs: [...scriptRefs].sort(),
   };
+}
+
+/**
+ * Security-default flags the OneCDN office.js sets before the loader code:
+ *   isOsfSecurityDefaultsEnabled = true;  → Trusted Types on (unless data-enable-trusted-types says otherwise)
+ *   osfLoadMsAjax = false;                → MicrosoftAjax (Sys.*, Type.registerNamespace) is not loaded
+ * Only a bare assignment of a literal counts: the loader itself reads the first flag and writes
+ * `self.osfLoadMsAjax = b` from a variable, and a minifier may spell the literal `!0` / `!1`.
+ */
+const FLAG_RE = {
+  securityDefaults: /(?<![\w$.])isOsfSecurityDefaultsEnabled\s*=\s*(true|false|!0|!1)\b/,
+  loadMsAjax: /(?<![\w$.])osfLoadMsAjax\s*=\s*(true|false|!0|!1)\b/,
+};
+const FLAG_STATEMENTS = /(?<![\w$.])(?:isOsfSecurityDefaultsEnabled|osfLoadMsAjax)\s*=\s*(?:true|false|!0|!1)\b\s*;?\s*/g;
+const flagValue = (literal) => literal === "true" || literal === "!0";
+
+/** `{ securityDefaults, loadMsAjax }`: true / false, or null when the loader does not set the flag. */
+export function loaderFlags(source) {
+  const out = {};
+  for (const [name, re] of Object.entries(FLAG_RE)) {
+    const m = re.exec(source);
+    out[name] = m ? flagValue(m[1]) : null;
+  }
+  return out;
+}
+
+export const sameFlags = (a, b) => a.securityDefaults === b.securityDefaults && a.loadMsAjax === b.loadMsAjax;
+
+/**
+ * sha256 of the loader without its flag assignments: equal for the legacy and the OneCDN office.js of one
+ * build, so the two endpoints can be compared. Never a version id — that stays the sha256 of the bytes.
+ */
+export function bodyHashSansFlags(source) {
+  return createHash("sha256").update(source.replace(FLAG_STATEMENTS, "")).digest("hex");
+}
+
+/** Microsoft's page on the CDN endpoints, including what the OneCDN security defaults change. */
+export const MS_CDN_DOCS =
+  "https://learn.microsoft.com/en-us/office/dev/add-ins/develop/referencing-the-javascript-api-for-office-library-from-its-cdn";
+
+const flagText = (v) => (v === null || v === undefined ? "unset" : String(v));
+
+/** The loader-flags-changed sentence for alerts and the rollout page. */
+export function flagsChangeNotice(channel, from, to) {
+  return (
+    `Office.js loader on ${channel} changed security defaults: ` +
+    `isOsfSecurityDefaultsEnabled ${flagText(from?.securityDefaults)}→${flagText(to?.securityDefaults)}, ` +
+    `osfLoadMsAjax ${flagText(from?.loadMsAjax)}→${flagText(to?.loadMsAjax)}. ` +
+    `Add-ins relying on MicrosoftAjax (Sys.*, Type.registerNamespace) or on implicit command registration may break. ` +
+    `See Microsoft's migration notes: ${MS_CDN_DOCS}`
+  );
 }

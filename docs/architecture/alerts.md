@@ -84,6 +84,29 @@ carries only changes not sent before — also to someone who subscribed in betwe
 before the queue existed. Slack gets the same: one line per build, then updates
 only with new changes.
 
+## Loader security defaults (`loader-flags-changed`)
+
+A new `office.js` whose security-default flags differ from the stable loader's (`loaderFlagsEvent` in
+`pipeline/run.js`, flags in [`crawler.md`](crawler.md)) gets `flagsChanged: true` and severity **High**,
+whatever its API diff says (`reclassify` never lowers it). The main case: the legacy endpoint adopting the
+OneCDN defaults — add-ins that depend on MicrosoftAjax (`Sys.*`, `Type.registerNamespace`) would break
+edge by edge. Confirmation is as for every group (`CONFIRM_RUNS`). The alert (subject "loader security
+defaults changed"), Slack and the rollout page carry `flagsChangeNotice`: "Office.js loader on <channel>
+changed security defaults: isOsfSecurityDefaultsEnabled <old>→<new>, osfLoadMsAjax <old>→<new>. …" with a
+link to Microsoft's CDN page. It goes to every subscriber of the channel, watchlist or not, and also when the
+group was alerted on before (the loader can change without a new build).
+
+## OneCDN channels: one alert per build
+
+OneCDN serves the same host files as the legacy endpoint, so one build is a group on `prod` and on
+`onecdn-prod`. Subscribers choose production or beta, not an endpoint: a OneCDN channel reaches the
+subscribers of its legacy channel (`legacyOf`). Alerts and rollbacks — email and Slack alike — go out from
+legacy channels as before; a OneCDN channel alerts only for `loader-flags-changed`, or for a build legacy
+has not shown (no rollout of that group on the legacy channel and no legacy file stable on that build —
+`alertsFromChannel`). A build that reaches OneCDN first is therefore alerted from OneCDN, and once more
+when it reaches legacy. A skipped OneCDN batch is still marked notified. Links in every alert go to the
+track's page (`/rollouts/prod|beta/<build>`), which shows both endpoints.
+
 ## Delivery queue
 
 Alerts are not sent inline: `notifyGroup` and `notifyRollback` render every message and insert it into
@@ -122,5 +145,5 @@ It needs `BREVO_API_KEY`, so run it where that key is set (on the server).
 - **Email** — Brevo transactional API (`POST /v3/smtp/email`), sender `MAIL_FROM_EMAIL` / `MAIL_FROM_NAME`;
   in production `silentship <alerts@silentship.dev>`. Without `BREVO_API_KEY` the email is printed to the
   log (development). DNS for deliverability — `docs/SETUP.md`.
-- **Slack** — `SLACK_WEBHOOK_URL`, one message per build for the whole channel (not per subscriber), plus
+- **Slack** — `SLACK_WEBHOOK_URL`, one message per build for the whole channel (not per subscriber; OneCDN only as above), plus
   updates with new API changes. Both go through the delivery queue.

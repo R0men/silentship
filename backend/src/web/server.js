@@ -9,18 +9,18 @@ import { esc } from "../util/html.js";
 import {
   crawlerHealth,
   getApiType,
-  getGroup,
+  getRelease,
+  isTrack,
   listApiTypes,
-  listGroups,
+  listReleases,
   overview,
-  sitemapGroups,
+  sitemapReleases,
   TYPE_RE,
 } from "./queries.js";
 import { createLiveFeed } from "./live.js";
 import { actionPage } from "./action-page.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const CHANNELS = new Set(["prod", "beta"]);
 const GROUP_RE = /^[\w.-]{1,80}$/;
 
 const pct = (share) => `${Math.round(share * 100)}%`;
@@ -42,7 +42,7 @@ export function rssFeed(groups, publicUrl) {
     .join("");
   return (
     `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>silentship — Office.js CDN rollouts</title>` +
-    `<link>${esc(publicUrl)}</link><description>New Office.js builds spreading across appsforoffice.microsoft.com</description>${items}</channel></rss>`
+    `<link>${esc(publicUrl)}</link><description>New Office.js builds spreading across appsforoffice.microsoft.com and officeapis.public.onecdn.static.microsoft</description>${items}</channel></rss>`
   );
 }
 
@@ -74,11 +74,11 @@ export async function buildServer() {
 
   app.get("/api/overview", async () => overview());
 
-  /** Rollouts grouped by target build, newest first. */
+  /** Releases (one per track and build, both endpoints), newest first; `channel` is the track. */
   app.get("/api/rollouts", async (req) => {
     const before = req.query.before ? new Date(req.query.before) : null;
-    const groups = await listGroups({
-      channel: CHANNELS.has(req.query.channel) ? req.query.channel : null,
+    const groups = await listReleases({
+      track: isTrack(req.query.channel) ? req.query.channel : null,
       severity: SEVERITY_RANK[req.query.severity] !== undefined ? req.query.severity : null,
       before: before && !Number.isNaN(before.getTime()) ? before : null,
       limit: Math.min(Math.max(Number(req.query.limit) || 30, 1), 100),
@@ -88,8 +88,8 @@ export async function buildServer() {
 
   app.get("/api/rollouts/:channel/:group", async (req, reply) => {
     const { channel, group } = req.params;
-    if (!CHANNELS.has(channel) || !GROUP_RE.test(group)) return reply.code(404).send({ error: "not_found" });
-    const detail = await getGroup(channel, group);
+    if (!isTrack(channel) || !GROUP_RE.test(group)) return reply.code(404).send({ error: "not_found" });
+    const detail = await getRelease(channel, group);
     if (!detail) return reply.code(404).send({ error: "not_found" });
     return detail;
   });
@@ -108,12 +108,12 @@ export async function buildServer() {
 
   /** Keys and dates of every rollout and API type page; the frontend renders /sitemap.xml from it. */
   app.get("/api/sitemap", async () => {
-    const [rollouts, types] = await Promise.all([sitemapGroups(), listApiTypes()]);
+    const [rollouts, types] = await Promise.all([sitemapReleases(), listApiTypes()]);
     return { rollouts, types: types.map((t) => ({ type: t.type, lastModified: t.lastModified })) };
   });
 
   app.get("/rss.xml", async (_req, reply) => {
-    reply.type("application/rss+xml; charset=utf-8").send(rssFeed(await listGroups({ limit: 50 }), config.publicUrl));
+    reply.type("application/rss+xml; charset=utf-8").send(rssFeed(await listReleases({ limit: 50 }), config.publicUrl));
   });
 
   app.post("/api/subscribe", { bodyLimit: 4096 }, async (req, reply) => {

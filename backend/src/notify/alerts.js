@@ -1,7 +1,8 @@
-import { config } from "../config.js";
+import { config, LEGACY_CHANNEL, legacyOf } from "../config.js";
 import { db } from "../db.js";
 import { maxSeverity, SEVERITY_RANK } from "../analysis/diff.js";
 import { matchingChanges } from "../analysis/watchlist.js";
+import { flagsChangeNotice } from "../crawler/loader.js";
 import { hostTypeOf } from "../crawler/manifest.js";
 import { CONFIRM_RUNS } from "../pipeline/rollouts.js";
 import { listGroups } from "../web/queries.js";
@@ -56,10 +57,28 @@ export function groupConfirmed(rollouts) {
 
 /**
  * Whether a rollout deserves an email to a subscriber without a watchlist: a new build that changed no
- * public API is noise for add-in developers. High (e.g. a removed file) always counts. Slack still gets it.
+ * public API is noise for add-in developers. High (e.g. a removed file) and a loader-flags-changed event
+ * always count. Slack still gets it (unless a OneCDN duplicate, see alertsFromChannel).
  */
-export function emailWorthy({ changes, severity }) {
-  return changes.length > 0 || severity === "high";
+export function emailWorthy({ changes, severity, flagsChanged = false }) {
+  return changes.length > 0 || severity === "high" || flagsChanged;
+}
+
+/**
+ * OneCDN serves the same host files as legacy, so one build is a group on both and would be two alerts.
+ * Legacy channels alert as before; a OneCDN channel (email and Slack) only for what legacy cannot tell: its
+ * loader's security-default flags changed, or a build legacy has not shown (no rollout of that group there,
+ * and no legacy file stable on it).
+ */
+async function alertsFromChannel(channel, group, flagsChanged) {
+  const legacy = LEGACY_CHANNEL[channel];
+  if (!legacy || flagsChanged) return true;
+  const { rollouts, fileStates } = await db();
+  const query = { projection: { _id: 1 } };
+  const onLegacy =
+    (await rollouts.findOne({ channel: legacy, region: config.region, group }, query)) ??
+    (await fileStates.findOne({ channel: legacy, region: config.region, stableBuild: group }, query));
+  return !onLegacy;
 }
 
 /** Every file of a confirmed group stopped being served for ABANDON_MS: Microsoft pulled the build back. */
@@ -196,7 +215,8 @@ export async function flushDeliveries(now = new Date()) {
 
 /** Everything an alert about one rollout group needs, computed once for Slack and every subscriber. */
 async function groupContext(channel, group, rollouts) {
-  const url = `${config.publicUrl}/rollouts/${channel}/${encodeURIComponent(group)}`;
+  // The site shows a build once per track (production, beta), with both endpoints on one page.
+  const url = `${config.publicUrl}/rollouts/${legacyOf(channel)}/${encodeURIComponent(group)}`;
   const changes = rollouts.flatMap((r) =>
     r.apiChanges.map((c) => ({
       path: c.path,
@@ -226,11 +246,15 @@ async function groupContext(channel, group, rollouts) {
     `Office.js ${channel}: ${what} [${severity}] — ${files} file(s), on ~${pct(share)} of sampled edges, ` +
     `${changes.length} API change(s)`;
   const title = toBuild ?? (removed ? "Files removed" : "Unversioned change");
+  // loader-flags-changed: office.js of this batch sets the security defaults differently.
+  const flagged = rollouts.find((r) => r.flagsChanged);
   return {
     channel,
     url,
     changes,
     severity,
+    flagsChanged: Boolean(flagged),
+    notice: flagged ? flagsChangeNotice(channel, flagged.fromFlags, flagged.toFlags) : null,
     toBuild,
     fromBuilds,
     share,
@@ -246,16 +270,30 @@ async function groupContext(channel, group, rollouts) {
 function renderAlert(ctx, { changes, severity, unsubscribe, watched, update = false }) {
   const entries = apiEntries(changes);
   const limit = 25;
-  const what = ctx.toBuild ? `build ${ctx.toBuild} rolling out` : ctx.what;
-  const subject = `[${severity}] Office.js ${ctx.channel}: ${what}${update ? ` — update, ${changes.length} new API change(s)` : ""}`;
+  const what = ctx.notice
+    ? "loader security defaults changed"
+    : ctx.toBuild
+      ? `build ${ctx.toBuild} rolling out`
+      : ctx.what;
+  const subject =
+    `[${severity}] Office.js ${ctx.channel}: ${what}` +
+    `${update && !ctx.notice ? ` — update, ${changes.length} new API change(s)` : ""}`;
   return {
     subject,
-    text: [update ? subject : ctx.header, "", ...summarizeApi(changes, limit), "", ctx.url, "", `Unsubscribe: ${unsubscribe}`].join(
-      "\n",
-    ),
+    text: [
+      update ? subject : ctx.header,
+      ...(ctx.notice ? ["", ctx.notice] : []),
+      "",
+      ...summarizeApi(changes, limit),
+      "",
+      ctx.url,
+      "",
+      `Unsubscribe: ${unsubscribe}`,
+    ].join("\n"),
     html: alertEmail({
       channel: ctx.channel,
       title: ctx.title,
+      notice: ctx.notice,
       fromBuilds: ctx.fromBuilds,
       severity,
       status: ctx.status,
@@ -275,8 +313,11 @@ function renderAlert(ctx, { changes, severity, unsubscribe, watched, update = fa
 const unsubscribeUrl = (sub) => `${config.publicUrl}/unsubscribe?token=${sub.token}`;
 // Gmail/Yahoo bulk-sender rules: one-click unsubscribe (RFC 8058).
 const unsubscribeHeaders = (url) => ({ "List-Unsubscribe": `<${url}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" });
+/** Subscribers pick release or preview, not an endpoint: a OneCDN channel reaches its legacy channel's. */
 const activeSubscribers = async (channel) =>
-  (await db()).subscribers.find({ confirmedAt: { $ne: null }, unsubscribedAt: null, channels: channel }).toArray();
+  (await db()).subscribers
+    .find({ confirmedAt: { $ne: null }, unsubscribedAt: null, channels: legacyOf(channel) })
+    .toArray();
 const watchesOf = (sub) => (sub.watchItems ?? []).map((w) => ({ pattern: w.pattern, hosts: w.hosts ?? [] }));
 
 /** `changes` without those already in `sent`, by API path and kind (the hosts are detail, not news). */
@@ -304,20 +345,25 @@ async function notifyGroup(channel, group, rollouts) {
   const key = `rollout:${channel}:${group}:${rollouts.map((r) => String(r._id)).sort()[0]}`;
   const base = { key, kind: "rollout", channel, group };
   const messages = [];
+  const fromHere = await alertsFromChannel(channel, group, ctx.flagsChanged);
 
+  // A loader-flags-changed event is news even in a build that was alerted on before (same build, new flags).
+  const updateSeverity = (changes) => (ctx.flagsChanged ? "high" : maxSeverity(changes.map((c) => c.severity)));
   const slackChanges = prior ? newChanges(ctx.changes, prior) : ctx.changes;
-  if (!prior || slackChanges.length) {
-    const severity = prior ? maxSeverity(slackChanges.map((c) => c.severity)) : ctx.severity;
+  if (fromHere && (!prior || slackChanges.length || ctx.flagsChanged)) {
+    const severity = prior ? updateSeverity(slackChanges) : ctx.severity;
     const { text } = renderAlert(ctx, { changes: slackChanges, severity, unsubscribe: "", watched: false, update: !!prior });
     const head = text.split("\n")[0];
-    messages.push({ ...base, transport: "slack", subscriberId: null, message: { text: [head, ...summarizeApi(slackChanges, 15), ctx.url].join("\n") } });
+    const notice = ctx.notice ? [ctx.notice] : [];
+    messages.push({ ...base, transport: "slack", subscriberId: null, message: { text: [head, ...notice, ...summarizeApi(slackChanges, 15), ctx.url].join("\n") } });
   }
 
   const { deliveries, rollouts: rolloutCol } = await db();
   const alerted = new Set(
     (await deliveries.distinct("subscriberId", { kind: "rollout", channel, group, transport: "email" })).map(String),
   );
-  for (const sub of await activeSubscribers(channel)) {
+  const subscribers = fromHere ? await activeSubscribers(channel) : [];
+  for (const sub of subscribers) {
     const watches = watchesOf(sub);
     const relevant = matchingChanges(watches, ctx.changes);
     // "Update" in the subject only for those who got the first email; once the group was alerted on, every
@@ -328,13 +374,14 @@ async function notifyGroup(channel, group, rollouts) {
     let severity;
     if (prior) {
       changes = newChanges(relevant, matchingChanges(watches, prior));
-      if (changes.length === 0) continue;
-      severity = maxSeverity(changes.map((c) => c.severity));
+      if (changes.length === 0 && !ctx.flagsChanged) continue;
+      severity = updateSeverity(changes);
     } else {
       // With a watchlist only matching API changes count; without one, any rollout that changed the API.
-      if (watches.length && relevant.length === 0) continue;
+      // A loader-flags-changed event concerns every add-in, watchlist or not.
+      if (watches.length && relevant.length === 0 && !ctx.flagsChanged) continue;
       if (!watches.length && !emailWorthy(ctx)) continue;
-      severity = watches.length ? maxSeverity(relevant.map((c) => c.severity)) : ctx.severity;
+      severity = watches.length && !ctx.flagsChanged ? maxSeverity(relevant.map((c) => c.severity)) : ctx.severity;
     }
     if (SEVERITY_RANK[severity] < SEVERITY_RANK[sub.minSeverity ?? "low"]) continue;
 
@@ -393,8 +440,12 @@ async function notifyRollback(channel, group, items) {
   const ctx = await groupContext(channel, group, items);
   const base = { key: `rollback:${channel}:${group}`, kind: "rollback", channel, group };
   const { line } = renderRollback(ctx, items, { changes: ctx.changes, unsubscribe: "" });
-  const messages = [{ ...base, transport: "slack", subscriberId: null, message: { text: [line, ctx.url].join("\n") } }];
-  for (const sub of await activeSubscribers(channel)) {
+  const fromHere = await alertsFromChannel(channel, group, ctx.flagsChanged);
+  const messages = fromHere
+    ? [{ ...base, transport: "slack", subscriberId: null, message: { text: [line, ctx.url].join("\n") } }]
+    : [];
+  const subscribers = fromHere ? await activeSubscribers(channel) : [];
+  for (const sub of subscribers) {
     const watches = watchesOf(sub);
     const relevant = matchingChanges(watches, ctx.changes);
     if (watches.length && relevant.length === 0) continue;

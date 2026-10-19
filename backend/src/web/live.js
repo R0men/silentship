@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import { db } from "../db.js";
-import { listGroups, overview } from "./queries.js";
+import { listReleases, overview } from "./queries.js";
 
 /**
  * Live updates over Server-Sent Events.
@@ -20,7 +20,7 @@ export function createLiveFeed({ pollMs = 5_000 } = {}) {
   let timers = [];
 
   async function buildSnapshot() {
-    const [ov, rollouts] = await Promise.all([overview(), listGroups({ limit: 30 })]);
+    const [ov, rollouts] = await Promise.all([overview(), listReleases({ limit: 30 })]);
     return { overview: ov, rollouts, at: new Date().toISOString() };
   }
 

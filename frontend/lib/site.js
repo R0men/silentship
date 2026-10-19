@@ -5,6 +5,7 @@ export const SITE = {
   // Who is responsible for the data (GDPR "controller"): a person's or company's legal name and address.
   operator: "the operator of silentship",
   contactEmail: "privacy@silentship.dev",
+  repo: "https://github.com/R0men/silentship",
   updated: "2026-10-17",
 };
 

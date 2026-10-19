@@ -1,9 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { groupTitle, pct } from "@/lib/format";
+import { channelLabel, CHANNELS, ENDPOINTS, groupTitle, pct } from "@/lib/format";
 import { useLive } from "./Live";
 import { ShareBar, TimeAgo } from "./ui";
+
+/** "Same build on legacy and onecdn", or which endpoint serves what. */
+function Endpoints({ endpoints }) {
+  const { legacy, onecdn } = endpoints ?? {};
+  if (!legacy || !onecdn) return null;
+  if (legacy.build && legacy.build === onecdn.build) {
+    return (
+      <div className="endpoints-line muted">
+        Same build on {ENDPOINTS.legacy.label} and {ENDPOINTS.onecdn.label}
+      </div>
+    );
+  }
+  return (
+    <div className="endpoints-line endpoints-differ">
+      {ENDPOINTS.legacy.label} <span className="mono">{legacy.build ?? "—"}</span> · {ENDPOINTS.onecdn.label}{" "}
+      <span className="mono">{onecdn.build ?? "—"}</span>
+    </div>
+  );
+}
 
 function Channel({ c }) {
   const fresh = c.lastCrawlAt && Date.now() - new Date(c.lastCrawlAt).getTime() < 45 * 60_000;
@@ -20,8 +39,8 @@ function Channel({ c }) {
     <div className="channel">
       <div className="channel-head">
         <span className="label">
-          {c.channel === "prod" ? "Production" : "Beta"}
-          <span className="faint"> /lib/{c.channel === "prod" ? "1" : "beta"}/hosted</span>
+          {channelLabel(c.channel)}
+          <span className="faint"> {CHANNELS[c.channel]?.where}</span>
         </span>
         <span className="live">
           <span className={`dot dot-${state}`} />
@@ -29,6 +48,7 @@ function Channel({ c }) {
         </span>
       </div>
       <div className="build">{c.build ?? "—"}</div>
+      <Endpoints endpoints={c.endpoints} />
       <div className="muted channel-meta">
         <TimeAgo date={c.lastCrawlAt} prefix="checked " /> · {c.samples} samples per file
       </div>

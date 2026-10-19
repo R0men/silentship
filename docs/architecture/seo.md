@@ -3,7 +3,8 @@
 Code: `frontend/lib/site.js` (`SITE`, `SITE_URL`, `pageMeta`), `frontend/app/layout.js`, `frontend/app/page.js`,
 `frontend/app/rollouts/[channel]/[group]/page.js`, `frontend/app/sitemap.js`, `frontend/app/robots.js`,
 `frontend/app/opengraph-image.js`, `frontend/app/llms.txt/route.js`; backend — `GET /api/sitemap`
-(`sitemapGroups` in `backend/src/web/queries.js`).
+(`sitemapReleases` in `backend/src/web/queries.js`: one URL per track and build, never a OneCDN one —
+those 301 to the track's page).
 
 ## Absolute URLs
 

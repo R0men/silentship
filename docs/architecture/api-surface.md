@@ -93,7 +93,9 @@ every 20606 file while present in 20528. So the removal is real.
 | class constructor (add-ins do not call it) | Low |
 | non-host file changed (strings, telemetry, o15 map) | Low (file level) |
 
-A rollout's severity is the maximum over its API changes; a removed file is High, a new file Low. A failed
+A rollout's severity is the maximum over its API changes; a removed file is High, a new file Low. A new
+`office.js` whose security-default flags changed is High whatever its API changes (`loader-flags-changed`,
+[`alerts.md`](alerts.md)). A failed
 analysis or a missing previous version in the archive → Low without API changes (logged).
 
 ## API status from the official types

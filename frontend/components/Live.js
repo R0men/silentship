@@ -8,22 +8,24 @@ import { useRouter } from "next/navigation";
  * snapshot { overview, rollouts, at } whenever a crawl starts or finishes; EventSource reconnects on its own.
  */
 
-const LiveContext = createContext({ data: null, connected: false, listeners: null });
+const LiveContext = createContext({ data: null, connected: false, state: "connecting", listeners: null });
 
 export function LiveProvider({ children }) {
   const [data, setData] = useState(null);
-  const [connected, setConnected] = useState(false);
+  // connecting (server HTML, bots, link previews) → live, or offline only after a real stream error.
+  const [state, setState] = useState("connecting");
+  const connected = state === "live";
   const listeners = useRef(new Set());
 
   useEffect(() => {
     const source = new EventSource("/api/live");
-    source.onopen = () => setConnected(true);
-    source.onerror = () => setConnected(false);
+    source.onopen = () => setState("live");
+    source.onerror = () => setState("offline");
     source.addEventListener("update", (e) => {
       try {
         const snapshot = JSON.parse(e.data);
         setData(snapshot);
-        setConnected(true);
+        setState("live");
         for (const fn of listeners.current) fn(snapshot);
       } catch {
         // A malformed frame is skipped; the next one replaces it.
@@ -33,7 +35,7 @@ export function LiveProvider({ children }) {
   }, []);
 
   return (
-    <LiveContext.Provider value={{ data, connected, listeners: listeners.current }}>{children}</LiveContext.Provider>
+    <LiveContext.Provider value={{ data, connected, state, listeners: listeners.current }}>{children}</LiveContext.Provider>
   );
 }
 
@@ -70,15 +72,19 @@ export function LiveRefresh() {
   return null;
 }
 
+const BADGE = {
+  connecting: { label: "", title: "Connecting to live updates…" },
+  live: { label: "Live", title: "Receiving live updates" },
+  offline: { label: "Offline", title: "Reconnecting…" },
+};
+
+/** Neutral until the stream answers: the server-rendered page never claims to be offline. */
 export function LiveBadge() {
-  const { connected } = useContext(LiveContext);
+  const { state } = useContext(LiveContext);
   return (
-    <span
-      className={`live-badge${connected ? " on" : ""}`}
-      title={connected ? "Receiving live updates" : "Reconnecting…"}
-    >
+    <span className={`live-badge${state === "live" ? " on" : ""}`} title={BADGE[state].title}>
       <span className="dot" />
-      {connected ? "Live" : "Offline"}
+      {BADGE[state].label}
     </span>
   );
 }

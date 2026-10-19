@@ -21,7 +21,9 @@ const C = {
 const SANS = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const MONO = "'JetBrains Mono','SF Mono',Menlo,Consolas,'Liberation Mono',monospace";
 const SEVERITY_COLOR = { high: C.high, medium: C.medium, low: C.low };
-const CHANNEL_LABEL = { prod: "production", beta: "beta" };
+const CHANNEL_LABEL = { prod: "production", beta: "beta", "onecdn-prod": "OneCDN production", "onecdn-beta": "OneCDN beta" };
+/** What the subscriber signed up for: a OneCDN channel alerts the subscribers of its legacy channel. */
+const subscribedLabel = (channel) => CHANNEL_LABEL[channel.replace(/^onecdn-/, "")] ?? channel;
 const KIND_LABEL = {
   added: "added",
   removed: "removed",
@@ -308,9 +310,23 @@ export function rollbackEmail({
   return layout({
     preheader: `${title} pulled back on ${channelName} after reaching ~${pct(peakShare)} of edges.`,
     body,
-    footer: html`You get this because you subscribed to silentship alerts for the ${channelName} channel.
+    footer: html`You get this because you subscribed to silentship alerts for the ${subscribedLabel(channel)} channel.
       <a href="${unsubscribe}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a> in one click.`,
   });
+}
+
+/** The loader-flags-changed warning: the most important line of the email when present. */
+function noticeBlock(notice) {
+  return html`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;">
+    <tr>
+      <td
+        bgcolor="${C.panel}"
+        style="border-left:3px solid ${C.high};padding:14px 16px;font:400 14px/1.6 ${SANS};color:${C.text};word-break:break-word;"
+      >
+        ${notice}
+      </td>
+    </tr>
+  </table>`;
 }
 
 /**
@@ -332,6 +348,7 @@ export function alertEmail({
   unsubscribe,
   watched,
   update = false,
+  notice = null,
 }) {
   const channelName = CHANNEL_LABEL[channel] ?? channel;
   const changesBlock = entries.length
@@ -355,11 +372,14 @@ export function alertEmail({
     </p>
     <h1 style="margin:0 0 6px;font:600 28px/1.2 ${MONO};color:${C.text};letter-spacing:-0.02em;">${title}</h1>
     <p style="margin:0 0 28px;color:${C.muted};">
-      ${update
+      ${notice
+        ? html`A new office.js on the ${channelName} CDN sets different security defaults.`
+        : update
         ? "An update on this rollout: more host files have reached the new build and brought API changes you have not been sent yet."
         : html`${status === "complete" ? "Microsoft has rolled out" : "Microsoft is rolling out"} a new Office.js build on
           the ${channelName} CDN${fromBuilds.length ? html`, replacing ${fromBuilds.join(", ")}` : ""}.`}
     </p>
+    ${notice ? noticeBlock(notice) : ""}
 
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr>
@@ -388,9 +408,11 @@ export function alertEmail({
   `;
 
   return layout({
-    preheader: `${title} on ${channelName}: ${files} file(s), ~${pct(share)} of edges, ${totalChanges} API change(s).`,
+    preheader: notice
+      ? `Office.js loader security defaults changed on ${channelName}.`
+      : `${title} on ${channelName}: ${files} file(s), ~${pct(share)} of edges, ${totalChanges} API change(s).`,
     body,
-    footer: html`You get this because you subscribed to silentship alerts for the ${channelName} channel.
+    footer: html`You get this because you subscribed to silentship alerts for the ${subscribedLabel(channel)} channel.
       <a href="${unsubscribe}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a> in one click.`,
   });
 }

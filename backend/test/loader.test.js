@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseLoader } from "../src/crawler/loader.js";
+import { bodyHashSansFlags, flagsChangeNotice, loaderFlags, parseLoader } from "../src/crawler/loader.js";
 import { buildManifest, hostFileName, versionsUpTo } from "../src/crawler/manifest.js";
 
 // Shape mirrors the minified production loader; content is synthetic.
@@ -73,5 +73,49 @@ describe("manifest", () => {
       "project-win32-16.00.js",
       "telemetry/oteljs_agave.js",
     ]);
+  });
+});
+
+describe("loader security-default flags", () => {
+  // Synthetic: the shape of the legacy loader (reads the flag, sets osfLoadMsAjax from a variable) and of
+  // the OneCDN one (the same code with two assignments in front).
+  const LEGACY =
+    'var OSF=OSF||{};(function(){var b=false,a="undefined",z=typeof isOsfSecurityDefaultsEnabled!==a&&' +
+    "isOsfSecurityDefaultsEnabled,Z=z;if(Z){self.osfLoadMsAjax=b;}})();\n";
+  const ONECDN = `isOsfSecurityDefaultsEnabled = true;\n\n\n\nosfLoadMsAjax = false;\n\n\n\n${LEGACY}`;
+
+  it("is unset on the legacy loader, whatever the loader code does with the names", () => {
+    expect(loaderFlags(LEGACY)).toEqual({ securityDefaults: null, loadMsAjax: null });
+  });
+
+  it("reads the OneCDN assignments, also minified", () => {
+    expect(loaderFlags(ONECDN)).toEqual({ securityDefaults: true, loadMsAjax: false });
+    expect(loaderFlags(`isOsfSecurityDefaultsEnabled=!0;osfLoadMsAjax=!1;${LEGACY}`)).toEqual({
+      securityDefaults: true,
+      loadMsAjax: false,
+    });
+    expect(loaderFlags("isOsfSecurityDefaultsEnabled=!1;osfLoadMsAjax=true;")).toEqual({
+      securityDefaults: false,
+      loadMsAjax: true,
+    });
+  });
+
+  it("ignores property writes and comparisons", () => {
+    expect(loaderFlags("self.osfLoadMsAjax=!1;window.isOsfSecurityDefaultsEnabled=true;")).toEqual({
+      securityDefaults: null,
+      loadMsAjax: null,
+    });
+    expect(loaderFlags("if(isOsfSecurityDefaultsEnabled===true){}")).toEqual({ securityDefaults: null, loadMsAjax: null });
+  });
+
+  it("hashes the loader without the flags, so both endpoints of one build compare equal", () => {
+    expect(bodyHashSansFlags(ONECDN)).toBe(bodyHashSansFlags(LEGACY));
+    expect(bodyHashSansFlags(ONECDN.replace("b=false", "b=true"))).not.toBe(bodyHashSansFlags(LEGACY));
+  });
+
+  it("describes a change for alerts", () => {
+    expect(
+      flagsChangeNotice("prod", loaderFlags(LEGACY), loaderFlags(ONECDN)),
+    ).toMatch(/^Office\.js loader on prod changed security defaults: isOsfSecurityDefaultsEnabled unset→true, osfLoadMsAjax unset→false\. /);
   });
 });

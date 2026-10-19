@@ -6,11 +6,13 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Live](https://img.shields.io/badge/live-silentship.dev-black)](https://silentship.dev)
 
-Office add-ins load Office.js from `appsforoffice.microsoft.com/lib/1/hosted/office.js`. The URL never
-changes, but the code behind it does — with no version, no changelog and no SRI hash. When an add-in breaks
-overnight, nobody can tell whether it was their release or Microsoft's.
+Office add-ins load Office.js from `appsforoffice.microsoft.com/lib/1/hosted/office.js` (or, as Microsoft now
+recommends, `officeapis.public.onecdn.static.microsoft/1/office.js`). The URL never changes, but the code
+behind it does — with no version, no changelog and no SRI hash. When an add-in breaks overnight, nobody can
+tell whether it was their release or Microsoft's.
 
-silentship watches that CDN. Every 10 minutes it samples every Office.js file on several edge servers,
+silentship watches both endpoints, production and beta. It also reads the security-default flags of each
+`office.js` (the new endpoint's loader stops loading MicrosoftAjax) and alerts if they change. Every 10 minutes it samples every Office.js file on several edge servers,
 tracks each new build as a **rollout** (which files, what share of edges serve it, since when), diffs the
 **public API surface** between versions, and publishes the result at
 [silentship.dev](https://silentship.dev), in [RSS](https://silentship.dev/rss.xml) and as email/Slack alerts.

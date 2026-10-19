@@ -22,7 +22,7 @@ let col;
 const base = Date.now() - 6 * 3600_000;
 const at = (min) => new Date(base + min * 60_000);
 
-async function addRollout(path, firstMin, changes) {
+async function addRollout(path, firstMin, changes, extra = {}) {
   const { insertedId } = await col.rollouts.insertOne({
     channel: "beta",
     region: "test",
@@ -41,6 +41,7 @@ async function addRollout(path, firstMin, changes) {
     lastSeenAt: at(firstMin + 20),
     history: [0.25, 0.5].map((share, i) => ({ at: at(firstMin + i * 10), share })),
     notifiedAt: null,
+    ...extra,
   });
   if (changes.length) {
     await col.apiChanges.insertMany(changes.map((c) => ({ rolloutId: insertedId, file: path, ...c })));
@@ -132,6 +133,65 @@ describe("alert delivery", () => {
     await col.subscribers.updateOne({ token: "tok" }, { $set: { unsubscribedAt: at(65) } });
     failing = false;
     expect(await alerts.flushDeliveries(at(70))).toEqual({ sent: 1, failed: 0, dropped: 1 });
+  });
+});
+
+describe("OneCDN channels", () => {
+  const removed = [{ path: "Excel.Range.foo", kind: "removed", severity: "high" }];
+  const emails = () => sent.filter((m) => m.transport === "email");
+
+  it("alerts a build once (email and Slack) although it rolls out on both endpoints", async () => {
+    await addRollout("excel-web-16.00.js", 0, removed);
+    await addRollout("excel-web-16.00.js", 0, removed, { channel: "onecdn-beta", toSha: "sha-onecdn" });
+    await alerts.notifyPending(20, at(60));
+    expect(emails().map((m) => m.subject)).toEqual(["[high] Office.js beta: build 16.0.3 rolling out"]);
+    expect(sent.filter((m) => m.transport === "slack")).toHaveLength(1);
+    expect(sent.find((m) => m.transport === "slack").text).toContain("Office.js beta:");
+  });
+
+  it("emails a build legacy has not shown to the legacy channel's subscribers", async () => {
+    await addRollout("excel-web-16.00.js", 0, removed, { channel: "onecdn-beta" });
+    await alerts.notifyPending(20, at(60));
+    expect(emails().map((m) => m.subject)).toEqual(["[high] Office.js onecdn-beta: build 16.0.3 rolling out"]);
+    expect(emails()[0].html).toContain("for the beta channel");
+    // One page per track: links go to /rollouts/beta/…, which shows both endpoints.
+    expect(emails()[0].text).toContain("https://example.test/rollouts/beta/16.0.3");
+  });
+
+  const flags = {
+    path: "office.js",
+    role: "loader",
+    severity: "high",
+    fromFlags: { securityDefaults: null, loadMsAjax: null },
+    toFlags: { securityDefaults: true, loadMsAjax: false },
+    flagsChanged: true,
+  };
+
+  it("alerts loader-flags-changed even in a build that was alerted on before", async () => {
+    await addRollout("excel-web-16.00.js", 0, removed);
+    await alerts.notifyPending(20, at(60));
+    sent.length = 0;
+
+    // The same build, a new office.js with the OneCDN security defaults: no API change, still news.
+    await addRollout("office.js", 80, [], flags);
+    await alerts.notifyPending(20, at(140));
+    expect(emails()).toHaveLength(1);
+    expect(emails()[0].subject).toBe("[high] Office.js beta: loader security defaults changed");
+    expect(emails()[0].text).toContain(
+      "Office.js loader on beta changed security defaults: isOsfSecurityDefaultsEnabled unset→true, osfLoadMsAjax unset→false.",
+    );
+    expect(emails()[0].html).toContain("MicrosoftAjax");
+    expect(sent.find((m) => m.transport === "slack").text).toContain("osfLoadMsAjax unset→false");
+  });
+
+  it("emails loader-flags-changed on OneCDN although legacy has the build", async () => {
+    await addRollout("excel-web-16.00.js", 0, removed);
+    await addRollout("office.js", 0, [], { ...flags, channel: "onecdn-beta" });
+    await alerts.notifyPending(20, at(60));
+    expect(emails().map((m) => m.subject).sort()).toEqual([
+      "[high] Office.js beta: build 16.0.3 rolling out",
+      "[high] Office.js onecdn-beta: loader security defaults changed",
+    ]);
   });
 });
 

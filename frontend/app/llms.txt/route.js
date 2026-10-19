@@ -1,12 +1,10 @@
 import { apiGet } from "@/lib/api";
 import { typeHref } from "@/lib/apiType";
-import { groupTitle, KIND_LABEL, pct } from "@/lib/format";
+import { channelLabel, groupTitle, KIND_LABEL, pct } from "@/lib/format";
 import { SITE, SITE_URL } from "@/lib/site";
 
 // Rendered per request like the sitemap: the list of rollouts must not be frozen at build time.
 export const dynamic = "force-dynamic";
-
-const CHANNEL = { prod: "production", beta: "beta" };
 
 function rolloutLine(g) {
   const state =
@@ -17,14 +15,14 @@ function rolloutLine(g) {
         : `on ~${pct(g.share)} of sampled CDN edges`;
   const from = g.fromBuilds.length ? `from ${g.fromBuilds.join(", ")}, ` : "";
   return (
-    `- [Office.js ${groupTitle(g)} (${CHANNEL[g.channel]})](${SITE_URL}/rollouts/${g.channel}/${encodeURIComponent(g.group)}): ` +
+    `- [Office.js ${groupTitle(g)} (${channelLabel(g.channel).toLowerCase()})](${SITE_URL}/rollouts/${g.channel}/${encodeURIComponent(g.group)}): ` +
     `${from}first seen ${day(g.firstSeenAt)}, ${g.files} file(s), ${state}, severity ${g.severity}, ${g.apiChangeCount} API change(s)`
   );
 }
 
 function typeLine(t) {
   const kinds = t.kinds.map((k) => (KIND_LABEL[k] ?? k).toLowerCase()).join(", ");
-  const channels = t.channels.map((c) => CHANNEL[c]).join(" and ");
+  const channels = t.channels.map((c) => channelLabel(c).toLowerCase()).join(" and ");
   return (
     `- [${t.type}](${SITE_URL}${typeHref(t.type)}): ${kinds} on ${channels}, ${t.changes} change(s), ` +
     `latest first seen ${day(t.lastSeenAt)}, severity ${t.severity}`
@@ -48,9 +46,9 @@ export async function GET() {
   }
   const body = `# ${SITE.name}
 
-> ${SITE.name} monitors the Office.js CDN (appsforoffice.microsoft.com/lib/1/hosted/ and /lib/beta/hosted/). Every 10 minutes it samples every Office.js file on several CDN edges, tracks each new build as a rollout (which files, what share of edges serve it, since when) and diffs the public API surface (Office, Excel, Word, PowerPoint, OneNote, Visio, Outlook).
+> ${SITE.name} monitors the Office.js CDN on both endpoints: the legacy appsforoffice.microsoft.com/lib/1/hosted/ and /lib/beta/hosted/, and Microsoft's recommended OneCDN officeapis.public.onecdn.static.microsoft/1/ and /beta/ (same host files; its office.js also enables security defaults that stop loading MicrosoftAjax). Every 10 minutes it samples every Office.js file on several CDN edges, tracks each new build as a rollout (which files, what share of edges serve it, since when) and diffs the public API surface (Office, Excel, Word, PowerPoint, OneNote, Visio, Outlook).
 
-Use it to answer "did Office.js change on the CDN?" and "which APIs changed in build X?". Shares are measured across sampled CDN edge responses, not across users. Severity: high = a public GA API was removed, its kind or arity changed, an enum value was removed or changed, or a file was removed; medium = the body of a public GA function changed; low = everything else: new APIs and enum values, preview and undocumented APIs, changes in non-API files (strings, telemetry). An incomplete reflection never produces high.
+Use it to answer "did Office.js change on the CDN?" and "which APIs changed in build X?". Shares are measured across sampled CDN edge responses, not across users. Severity: high = a public GA API was removed, its kind or arity changed, an enum value was removed or changed, a file was removed, or office.js changed its security-default flags (isOsfSecurityDefaultsEnabled, osfLoadMsAjax); medium = the body of a public GA function changed; low = everything else: new APIs and enum values, preview and undocumented APIs, changes in non-API files (strings, telemetry). An incomplete reflection never produces high.
 
 Limits: only the JavaScript layer served from the CDN is visible. Breakages inside native Office hosts (Outlook, Excel win32, Mac) are not. The site publishes metadata and API-surface diffs only, never Microsoft's code. Not affiliated with Microsoft.
 

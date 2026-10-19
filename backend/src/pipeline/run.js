@@ -1,7 +1,7 @@
 import { config, CHANNEL_BASE_URL } from "../config.js";
 import { extractBuild } from "../crawler/build.js";
 import { fetchFile, mapLimit } from "../crawler/fetcher.js";
-import { parseLoader } from "../crawler/loader.js";
+import { bodyHashSansFlags, loaderFlags, parseLoader, sameFlags } from "../crawler/loader.js";
 import { buildManifest, LOADER_PATH } from "../crawler/manifest.js";
 import { formattedRel } from "../archive/git-archive.js";
 import { formatJs } from "../analysis/format.js";
@@ -123,6 +123,34 @@ async function analyzeRollout(archive, channel, entry, create, loaderSha) {
   }
 }
 
+export const LOADER_FLAGS_CHANGED = "loader-flags-changed";
+
+/**
+ * The `loader-flags-changed` event: a new office.js sets the security-default flags differently from the
+ * stable one — e.g. the legacy endpoint adopting OneCDN's defaults, which stops loading MicrosoftAjax for
+ * every add-in it reaches. Always High. null when the flags are the same or the previous loader is unknown.
+ */
+export function loaderFlagsEvent(fromSource, toSource) {
+  if (fromSource == null || toSource == null) return null;
+  const from = loaderFlags(fromSource);
+  const to = loaderFlags(toSource);
+  return sameFlags(from, to) ? null : { event: LOADER_FLAGS_CHANGED, severity: "high", from, to };
+}
+
+/** Flags of a new loader version and of the one it replaces, and its hash without them. */
+async function loaderFacts(archive, create) {
+  const to = create.body.toString("utf8");
+  const before = create.fromSha ? await archive.readBlob(create.fromSha) : null;
+  const from = before ? before.toString("utf8") : null;
+  const event = loaderFlagsEvent(from, to);
+  return {
+    fromFlags: from === null ? null : loaderFlags(from),
+    toFlags: loaderFlags(to),
+    bodyHashSansFlags: bodyHashSansFlags(to),
+    flagsChanged: event !== null,
+  };
+}
+
 export async function runChannel(channel, archive) {
   const region = config.region;
   const base = CHANNEL_BASE_URL[channel];
@@ -134,10 +162,13 @@ export async function runChannel(channel, archive) {
     loadActiveRollouts(channel, region),
     needsFullRefresh(channel, region),
   ]);
+  // A channel's first run (a newly added endpoint): what the CDN serves is the baseline, not a release.
+  const bootstrap = states.size === 0;
   const { insertedId: runId } = await runs.insertOne({
     channel,
     region,
     full: forceFull,
+    bootstrap,
     samples,
     startedAt: now,
     finishedAt: null,
@@ -179,7 +210,7 @@ export async function runChannel(channel, archive) {
     const plans = sampled.map(({ entry, results }) => {
       const state = states.get(entry.path) ?? null;
       const tally = tallySamples(results, state);
-      const plan = planFile({ state, tally, rollouts: activeByPath.get(entry.path) ?? [], now });
+      const plan = planFile({ state, tally, rollouts: activeByPath.get(entry.path) ?? [], now, bootstrap });
       return { entry, results, tally, plan };
     });
 
@@ -197,11 +228,16 @@ export async function runChannel(channel, archive) {
     for (const { entry, plan } of plans) {
       for (const c of plan.creates) {
         const analysis = await analyzeRollout(archive, channel, entry, c, loaderSha);
+        const loader = entry.role === "loader" && c.toSha && c.body ? await loaderFacts(archive, c) : null;
+        if (loader?.flagsChanged) {
+          analysis.severity = "high";
+          log(channel, `${LOADER_FLAGS_CHANGED}: ${JSON.stringify(loader.fromFlags)} → ${JSON.stringify(loader.toFlags)}`);
+        }
         if (c.toSha && c.body) {
           const formatted = await formatJs(c.body.toString("utf8"));
           if (formatted !== null) await archive.write(formattedRel(channel, region, entry.path), formatted);
         }
-        createdDocs.push({ entry, create: c, analysis });
+        createdDocs.push({ entry, create: c, analysis, loader });
       }
     }
     const commit =
@@ -212,7 +248,7 @@ export async function runChannel(channel, archive) {
         : null;
 
     // 6. Persist.
-    for (const { entry, create: c, analysis } of createdDocs) {
+    for (const { entry, create: c, analysis, loader } of createdDocs) {
       const doc = {
         channel,
         region,
@@ -242,6 +278,8 @@ export async function runChannel(channel, archive) {
         apiChangeCount: analysis.apiChanges.length,
         // Why the API diff is not complete (partial or truncated reflection), if it is not.
         apiDiffNote: analysis.note ?? null,
+        // office.js only: fromFlags, toFlags, bodyHashSansFlags, flagsChanged (the loader-flags-changed event).
+        ...loader,
         archiveCommit: commit,
         notifiedAt: null,
       };
@@ -279,6 +317,9 @@ export async function runChannel(channel, archive) {
         );
       }
       if (plan.state) {
+        // The stable loader's security-default flags, and its hash without them for comparing endpoints.
+        const stableLoader =
+          entry.role === "loader" && plan.state.stableSha ? await archive.readBlob(plan.state.stableSha) : null;
         await fileStates.updateOne(
           { channel, region, path: entry.path },
           {
@@ -289,6 +330,10 @@ export async function runChannel(channel, archive) {
               retiredShas: plan.state.retiredShas,
               role: entry.role,
               hostType: entry.hostType ?? null,
+              ...(stableLoader && {
+                stableFlags: loaderFlags(stableLoader.toString("utf8")),
+                stableBodyHashSansFlags: bodyHashSansFlags(stableLoader.toString("utf8")),
+              }),
               updatedAt: now,
             },
           },
@@ -316,12 +361,15 @@ export async function runChannel(channel, archive) {
 
     const loaderPlan = plans.find((p) => p.entry.path === LOADER_PATH)?.plan;
     const build = loaderPlan?.state?.stableBuild ?? null;
+    const finishedAt = new Date();
+    const durationMs = finishedAt - now;
     await runs.updateOne(
       { _id: runId },
       {
         $set: {
           status: "ok",
-          finishedAt: new Date(),
+          finishedAt,
+          durationMs,
           build,
           files: plans.length,
           requests: plans.reduce((n, p) => n + p.results.length, 0),
@@ -334,7 +382,9 @@ export async function runChannel(channel, archive) {
     );
     log(
       channel,
-      `build ${build}, ${plans.length} files × ${samples} samples, ${(wireBytes / 1e6).toFixed(1)} MB; ` +
+      `${bootstrap ? "baseline recorded (first run, no rollouts): " : ""}` +
+        `build ${build}, ${plans.length} files × ${samples} samples, ${(wireBytes / 1e6).toFixed(1)} MB in ` +
+        `${(durationMs / 1000).toFixed(1)} s; ` +
         `${createdDocs.length} new rollout(s), ${completed} completed, ${stale} stale-edge sample(s)`,
     );
     return { runId, created: createdDocs.length, completed };

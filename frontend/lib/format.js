@@ -52,6 +52,33 @@ export const pct = (share) => `${Math.round((share ?? 0) * 100)}%`;
 
 export const STATUS_LABEL = { rolling: "Rolling out", complete: "Complete", abandoned: "Pulled back" };
 
+/**
+ * Tracks the site shows: production and beta. Each is served by two endpoints with byte-identical host
+ * files — the legacy appsforoffice.microsoft.com and Microsoft's recommended OneCDN — shown side by side.
+ */
+export const CHANNELS = {
+  prod: { label: "Production", where: "/lib/1/hosted" },
+  beta: { label: "Beta", where: "/lib/beta/hosted" },
+};
+
+export const ENDPOINTS = {
+  legacy: { label: "legacy", host: "appsforoffice.microsoft.com" },
+  onecdn: { label: "onecdn", host: "officeapis.public.onecdn.static.microsoft" },
+};
+
+/** Why a release's endpoints differ, in a few words; null when they agree. */
+export function divergence(r) {
+  if (!r.diverged) return null;
+  // The flags first: on legacy they stop loading MicrosoftAjax, whatever else differs.
+  if (r.flagsChanged) return "loader flags changed";
+  if (r.onecdnCrawled && !r.endpoints?.onecdn) return "legacy only";
+  if (!r.endpoints?.legacy) return "onecdn only";
+  if (r.differentFiles?.length) return r.differentFiles.length === 1 ? "1 file differs" : `${r.differentFiles.length} files differ`;
+  return "endpoints differ";
+}
+
+export const channelLabel = (channel) => CHANNELS[channel]?.label ?? channel;
+
 /** What a rollout group changes, in words. */
 export function groupTitle(g) {
   if (g.toBuild) return g.toBuild;

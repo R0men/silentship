@@ -66,6 +66,25 @@ describe("planFile", () => {
     expect(creates[0]).toMatchObject({ fromBuild: OLD.build, toBuild: NEW.build, share: 0.25 });
   });
 
+  it("bootstrap of a new channel: the newest version is the baseline and nothing is a rollout", () => {
+    const first = planFile({
+      state: null,
+      tally: tallySamples([ok(OLD), ok(OLD), ok(NEW), missing], null),
+      rollouts: [],
+      now,
+      bootstrap: true,
+    });
+    expect(first.state).toMatchObject({ stableSha: "new", stableBuild: NEW.build, stableLM: NEW.lastModified });
+    expect(first.creates).toEqual([]);
+    expect(first.updates).toEqual([]);
+    expect(first.stale).toBe(3);
+
+    // Next run: edges still on the older version answer 304 (or send it) and stay stale, not a rollout.
+    const second = run(first.state, [notModified, ok(OLD), notModified]);
+    expect(second.creates).toEqual([]);
+    expect(second.stale).toBe(1);
+  });
+
   it("baseline of a file that does not exist", () => {
     const { state, creates } = run(null, [missing, missing]);
     expect(state.stableSha).toBeNull();

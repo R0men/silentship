@@ -26,7 +26,8 @@ export async function reclassifyStored(statusOf = apiStatus) {
 
   let lowered = 0;
   const ids = [...new Map(rows.map((c) => [String(c.rolloutId), c.rolloutId])).values()];
-  for (const r of await rollouts.find({ _id: { $in: ids } }).toArray()) {
+  // A loader whose security-default flags changed is High whatever its API changes are.
+  for (const r of await rollouts.find({ _id: { $in: ids }, flagsChanged: { $ne: true } }).toArray()) {
     const own = await apiChanges.find({ rolloutId: r._id }).project({ severity: 1 }).toArray();
     const max = own.reduce((m, c) => Math.max(m, SEVERITY_RANK[c.severity] ?? 0), 0);
     const next = Object.keys(SEVERITY_RANK).find((k) => SEVERITY_RANK[k] === max);

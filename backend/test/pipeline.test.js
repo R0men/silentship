@@ -141,3 +141,27 @@ describe("alert rules", async () => {
     expect(groupRolledBack([])).toBe(false);
   });
 });
+
+describe("loader-flags-changed", async () => {
+  const { loaderFlagsEvent, LOADER_FLAGS_CHANGED } = await import("../src/pipeline/run.js");
+  // Synthetic loaders: one without the security-default flags (legacy), one with them (OneCDN).
+  const plain = 'var OSF=OSF||{};if(typeof isOsfSecurityDefaultsEnabled!=="undefined"){self.osfLoadMsAjax=b}';
+  const flagged = `isOsfSecurityDefaultsEnabled=!0;osfLoadMsAjax=!1;${plain}`;
+
+  it("is a High event when a new loader sets the flags differently", () => {
+    expect(loaderFlagsEvent(plain, flagged)).toEqual({
+      event: LOADER_FLAGS_CHANGED,
+      severity: "high",
+      from: { securityDefaults: null, loadMsAjax: null },
+      to: { securityDefaults: true, loadMsAjax: false },
+    });
+    // Switching back is a change too.
+    expect(loaderFlagsEvent(flagged, plain)?.severity).toBe("high");
+  });
+
+  it("is nothing when the flags stay the same, or the previous loader is unknown", () => {
+    expect(loaderFlagsEvent(flagged, flagged.replace("OSF||{}", "OSF||{x:1}"))).toBeNull();
+    expect(loaderFlagsEvent(plain, plain)).toBeNull();
+    expect(loaderFlagsEvent(null, flagged)).toBeNull();
+  });
+});

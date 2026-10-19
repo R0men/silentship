@@ -9,7 +9,27 @@ dotenv.config({ path: path.join(ROOT, ".env"), quiet: true });
 export const CHANNEL_BASE_URL = {
   prod: "https://appsforoffice.microsoft.com/lib/1/hosted/",
   beta: "https://appsforoffice.microsoft.com/lib/beta/hosted/",
+  // Microsoft's recommended endpoint since September 2026 (the one above is "legacy" in its docs). The loader
+  // takes its base path from its own <script src>, so add-ins on it load every host file from here too.
+  "onecdn-prod": "https://officeapis.public.onecdn.static.microsoft/1/",
+  "onecdn-beta": "https://officeapis.public.onecdn.static.microsoft/beta/",
 };
+
+/**
+ * Each OneCDN channel mirrors a legacy one: the same builds and the same host files, only its own office.js
+ * (security-default flags). Subscribers choose release or preview, not an endpoint, so a OneCDN channel
+ * alerts the subscribers of its legacy channel.
+ */
+export const LEGACY_CHANNEL = { "onecdn-prod": "prod", "onecdn-beta": "beta" };
+
+/** The legacy channel itself for prod/beta. */
+export const legacyOf = (channel) => LEGACY_CHANNEL[channel] ?? channel;
+
+/** prod ↔ onecdn-prod, beta ↔ onecdn-beta. */
+export function pairedChannel(channel) {
+  if (LEGACY_CHANNEL[channel]) return LEGACY_CHANNEL[channel];
+  return Object.keys(LEGACY_CHANNEL).find((c) => LEGACY_CHANNEL[c] === channel) ?? null;
+}
 
 function env(name, fallback) {
   const value = process.env[name];
@@ -38,7 +58,8 @@ export const config = {
   mongoDb: process.env.MONGODB_DB || undefined,
   archiveDir: path.resolve(ROOT, env("ARCHIVE_DIR", "./data/archive")),
   region: env("REGION", "local"),
-  channels: parseChannels(env("CHANNELS", "prod,beta")),
+  /** Crawled one after another in this order: legacy first, so the new endpoint never delays it. */
+  channels: parseChannels(env("CHANNELS", "prod,beta,onecdn-prod,onecdn-beta")),
   cron: env("CRON", "*/10 * * * *"),
   fullRefreshHours: Number(env("FULL_REFRESH_HOURS", "6")),
   /** Not PORT: Next.js reads that one. The API sits behind the frontend, so localhost by default. */

@@ -96,14 +96,23 @@ function pickBaseline(variants) {
   return present.reduce((a, b) => (isNewer(a, b) ? b : a));
 }
 
+/** The newest version present: a new channel's baseline, so edges still on older versions count as stale. */
+function pickNewest(variants) {
+  const present = [...variants.values()].filter((v) => v.sha !== null);
+  if (present.length === 0) return variants.get(ABSENT) ?? null;
+  return present.reduce((a, b) => (isNewer(b, a) ? b : a));
+}
+
 /**
  * Decide what one run's samples mean for a file.
  * @param state     fileState doc or null on first sight: { stableSha, stableBuild, stableLM, retiredShas }
  * @param tally     result of tallySamples
  * @param rollouts  this file's rollouts that are still `rolling`
+ * @param bootstrap the channel's first run (no file has a stable version yet): record what the CDN serves
+ *                  as the baseline and create no rollouts, so a new channel starts without phantom releases
  * @returns {{ state, creates, updates, stale }}
  */
-export function planFile({ state, tally, rollouts, now }) {
+export function planFile({ state, tally, rollouts, now, bootstrap = false }) {
   const { samples, variants } = tally;
   const creates = [];
   const updates = [];
@@ -112,7 +121,7 @@ export function planFile({ state, tally, rollouts, now }) {
 
   let next;
   if (!state) {
-    const base = pickBaseline(variants);
+    const base = bootstrap ? pickNewest(variants) : pickBaseline(variants);
     next = {
       stableSha: base?.sha ?? null,
       stableBuild: base?.build ?? null,
@@ -127,6 +136,11 @@ export function planFile({ state, tally, rollouts, now }) {
   const stableVariant = variants.get(keyOf(next.stableSha));
   if (stableVariant && lmTime(stableVariant.lastModified) > lmTime(next.stableLM)) {
     next.stableLM = stableVariant.lastModified;
+  }
+
+  if (bootstrap) {
+    stale = samples - (stableVariant?.count ?? 0);
+    return { state: next, creates, updates, stale };
   }
 
   const stableRef = { sha: next.stableSha, build: next.stableBuild, lastModified: next.stableLM };
