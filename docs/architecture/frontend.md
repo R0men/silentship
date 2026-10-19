@@ -57,7 +57,8 @@ perspective projection, no WebGL or dependencies) that stops when off-screen and
 `prefers-reduced-motion`. The product name in the UI is **silentship** (`silentship.dev` only as an address).
 
 The footer (`app/layout.js`, every page) names both endpoints, the scope limit, and links to Privacy, the
-GitHub repository (`SITE.repo`) and `privacy@silentship.dev` (`SITE.contactEmail`). On a rollout page the
+GitHub repository (`SITE.repo`), `privacy@silentship.dev` (`SITE.contactEmail`) and, in the faint footer colour
+without an underline until hover, Ko-fi (`SITE.support`). On a rollout page the
 visible labels of its sections are a tab and table column headers, which cannot hold a heading; visually
 hidden `<h2>` (`.sr-only`) give the page its outline ("Edges on new version", "API changes (N)" / "Files (N)")
 for screen readers and crawlers without changing the look.

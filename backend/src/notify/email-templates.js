@@ -18,6 +18,8 @@ const C = {
   low: "#8d8f98",
   accent: "#7c8cff",
 };
+/** Optional support link in every email's footer, in the footer's faint colour. */
+export const SUPPORT_URL = "https://ko-fi.com/silentship";
 const SANS = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const MONO = "'JetBrains Mono','SF Mono',Menlo,Consolas,'Liberation Mono',monospace";
 const SEVERITY_COLOR = { high: C.high, medium: C.medium, low: C.low };
@@ -114,6 +116,9 @@ function layout({ preheader, body, footer }) {
                         >
                           ${footer}
                           <br />Not affiliated with Microsoft. Metadata and API-surface diffs only — no Microsoft code.
+                          <br /><a href="${SUPPORT_URL}" style="color:${C.faint};text-decoration:none;"
+                            >Support silentship on Ko-fi</a
+                          >
                         </td>
                       </tr>
                     </table>

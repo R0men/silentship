@@ -128,7 +128,9 @@ also has a plain-text part.
 
 An alert shows: severity and channel, the build, a sentence about the release (past tense when complete),
 edge share with a bar, files / API changes / status, up to 25 changes (one per path, with hosts; "… and N
-more"), a button to the rollout page and a footer with the unsubscribe link. Change kinds are spelled out
+more"), a button to the rollout page and a footer with the unsubscribe link. Every email's footer (`layout`)
+also carries a quiet "Support silentship on Ko-fi" link (`SUPPORT_URL`), in the footer's faint colour; alert
+and rollback plain-text parts end with it too. Change kinds are spelled out
 ("enum values changed" instead of `enumChanged`).
 
 **Preview with real data** (the newest high-severity group — confirmation, rollout and rollback emails;

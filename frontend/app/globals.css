@@ -137,6 +137,15 @@ main {
   gap: 4px 20px;
   margin-top: 12px;
 }
+/* Present but not asking for attention: the footer's faint text colour, no underline until hover. */
+.footer a.footer-quiet {
+  color: var(--faint);
+  text-decoration: none;
+}
+.footer a.footer-quiet:hover {
+  color: var(--muted);
+  text-decoration: underline;
+}
 
 /* Headings for screen readers and crawlers where the visible label is a tab or a column header. */
 .sr-only {

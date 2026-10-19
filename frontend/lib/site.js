@@ -6,6 +6,8 @@ export const SITE = {
   operator: "the operator of silentship",
   contactEmail: "privacy@silentship.dev",
   repo: "https://github.com/R0men/silentship",
+  // Optional support link; kept quiet in the footer and emails.
+  support: "https://ko-fi.com/silentship",
   updated: "2026-10-17",
 };
 

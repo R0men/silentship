@@ -6,7 +6,7 @@ import { flagsChangeNotice } from "../crawler/loader.js";
 import { hostTypeOf } from "../crawler/manifest.js";
 import { CONFIRM_RUNS } from "../pipeline/rollouts.js";
 import { listGroups } from "../web/queries.js";
-import { alertEmail, confirmEmail, rollbackEmail } from "./email-templates.js";
+import { alertEmail, confirmEmail, rollbackEmail, SUPPORT_URL } from "./email-templates.js";
 import { postSlack, sendEmail } from "./senders.js";
 
 /** One entry per API path, listing the host files it changed in; most severe first. */
@@ -289,6 +289,7 @@ function renderAlert(ctx, { changes, severity, unsubscribe, watched, update = fa
       ctx.url,
       "",
       `Unsubscribe: ${unsubscribe}`,
+      `Support silentship: ${SUPPORT_URL}`,
     ].join("\n"),
     html: alertEmail({
       channel: ctx.channel,
@@ -414,7 +415,16 @@ function renderRollback(ctx, items, { changes, unsubscribe, watched }) {
   return {
     line,
     subject: `[pulled back] Office.js ${ctx.channel}: ${ctx.toBuild ? `build ${ctx.toBuild}` : ctx.title} rolled back`,
-    text: [line, "", ...summarizeApi(changes, limit), "", ctx.url, "", `Unsubscribe: ${unsubscribe}`].join("\n"),
+    text: [
+      line,
+      "",
+      ...summarizeApi(changes, limit),
+      "",
+      ctx.url,
+      "",
+      `Unsubscribe: ${unsubscribe}`,
+      `Support silentship: ${SUPPORT_URL}`,
+    ].join("\n"),
     html: rollbackEmail({
       channel: ctx.channel,
       title: ctx.title,

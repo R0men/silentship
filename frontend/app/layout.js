@@ -60,6 +60,9 @@ export default function RootLayout({ children }) {
                 <Link href="/privacy">Privacy</Link>
                 <a href={SITE.repo}>GitHub</a>
                 <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>
+                <a className="footer-quiet" href={SITE.support} rel="noopener">
+                  Support on Ko-fi
+                </a>
               </p>
             </footer>
           </ToastProvider>
