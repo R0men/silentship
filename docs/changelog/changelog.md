@@ -26,6 +26,7 @@
   - `[Style]` Neutral live badge in server HTML, footer links, both endpoints in the description
   - `[Feature]` Channel card shows the latest release when nothing rolls out
   - `[Style]` Ko-fi support link in the site footer and in emails
+  - `[Bug Fix]` "Rollouts" in the nav did nothing on a second click
 
 - **2026-10-17** — [2026-10-17.md](2026-10-17.md)
   - `[Feature]` Umami events: `open_rollout`, `view_rollouts`, `subscribe_start`

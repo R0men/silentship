@@ -3,6 +3,7 @@ import Script from "next/script";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { ToastProvider } from "@/components/Toast";
 import { LiveBadge, LiveProvider } from "@/components/Live";
+import SectionLink from "@/components/SectionLink";
 import { RSS, SITE, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
@@ -41,7 +42,7 @@ export default function RootLayout({ children }) {
               </Link>
               <nav>
                 <LiveBadge />
-                <Link href="/#rollouts">Rollouts</Link>
+                <SectionLink id="rollouts">Rollouts</SectionLink>
                 <Link href="/reference">API changes</Link>
                 <a className="nav-rss" href="/rss.xml">
                   RSS

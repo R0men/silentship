@@ -40,6 +40,9 @@ differ", "loader flags changed") only when the endpoints diverge. There is no en
 One `EventSource` per tab (`components/Live.js`, `LiveProvider`): the headline, channel status and feed
 update in place; a rollout page calls `router.refresh()` (`LiveRefresh`).
 
+**Nav "Rollouts"** is `SectionLink`: a plain `#rollouts` anchor on the home page, so every click scrolls there
+(next/link does nothing when the URL, hash included, is already the target), and a `/#rollouts` link elsewhere.
+
 **The nav badge** (`LiveBadge`) has three states: `connecting` — a dot without a label, which is what the
 server-rendered HTML shows (bots and link previews must not read "Offline"); `live` once the stream answers;
 `offline` only after a real stream error (EventSource keeps reconnecting).
