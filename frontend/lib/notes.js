@@ -13,6 +13,12 @@ const SUBSCRIBE = /<!--\s*subscribe:\s*(.*?)\s*-->\n?/;
 
 const unquote = (v) => v.replace(/^(["'])(.*)\1$/, "$2");
 
+// A real calendar day: the round trip rejects 2026-02-30, which Date would roll over to March.
+const isDay = (v) => {
+  const d = new Date(`${v}T00:00:00Z`);
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(d.getTime()) && d.toISOString().startsWith(v);
+};
+
 function parse(slug) {
   const text = readFileSync(join(DIR, `${slug}.md`), "utf8").replace(/\r\n/g, "\n");
   const m = text.match(/^---\n([\s\S]*?)\n---\n/);
@@ -25,6 +31,12 @@ function parse(slug) {
   );
   for (const key of ["title", "description", "date"]) {
     if (!meta[key]) throw new Error(`notes/${slug}.md: front matter has no ${key}`);
+  }
+  // A bad date passes the build but makes the sitemap's toISOString() throw, so it fails here instead.
+  for (const key of ["date", "updated"]) {
+    if (meta[key] !== undefined && !isDay(meta[key])) {
+      throw new Error(`notes/${slug}.md: ${key} "${meta[key]}" is not a YYYY-MM-DD date`);
+    }
   }
   return {
     ...meta,

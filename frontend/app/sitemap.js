@@ -31,7 +31,7 @@ export default async function sitemap() {
     { url: `${SITE_URL}/notes`, lastModified: latestNote, changeFrequency: "weekly", priority: 0.6 },
     ...notes.map((n) => ({
       url: `${SITE_URL}${n.path}`,
-      lastModified: new Date(n.date),
+      lastModified: new Date(n.updated ?? n.date),
       changeFrequency: "monthly",
       priority: 0.7,
     })),

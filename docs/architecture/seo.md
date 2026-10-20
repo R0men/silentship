@@ -47,8 +47,9 @@ would be baked in empty; this way new rollouts appear without a redeploy. Conten
 - `/privacy` — `lastmod` = `SITE.updated`, `yearly`, 0.2;
 - every rollout group from `/api/sitemap` — `lastmod` = max(`lastSeenAt`, `completedAt`), `daily`, priority
   0.8 for prod and 0.6 for beta;
-- `/notes` — `lastmod` = the newest note's date, `weekly`, 0.6; every note — its `date`, `monthly`, 0.7 (read
-  from `content/notes/`, no backend);
+- `/notes` — `lastmod` = the newest note's date, `weekly`, 0.6; every note — its `updated` or else `date`,
+  `monthly`, 0.7 (read from `content/notes/`, no backend; `lib/notes.js` rejects a date that is not a real
+  `YYYY-MM-DD`, so a typo fails the build instead of the sitemap);
 - `/reference` — `lastmod` = the newest type, `daily`, 0.7;
 - every API type page — `lastmod` = the newest change of its rollouts, `weekly`, 0.5.
 

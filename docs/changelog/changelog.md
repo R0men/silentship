@@ -21,6 +21,7 @@
 - **2026-10-20** — [2026-10-20.md](2026-10-20.md)
   - `[Feature]` Notes: `/notes`, the first note on what the new Office.js CDN endpoint changes
   - `[Feature]` Rollout pages link the endpoints note
+  - `[Bug Fix]` A note with an invalid date fails the build instead of the sitemap; sitemap uses `updated`
 
 - **2026-10-19** — [2026-10-19.md](2026-10-19.md)
   - `[Feature]` OneCDN endpoint (`officeapis.public.onecdn.static.microsoft`): channels `onecdn-prod`, `onecdn-beta`; a new channel's first run is a baseline

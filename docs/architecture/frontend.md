@@ -31,7 +31,7 @@ differ", "loader flags changed") only when the endpoints diverge. There is no en
 
 Write-ups (e.g. a rollout we watched end to end) live in the repository as `frontend/content/notes/<slug>.md`:
 front matter with `title` (the h1), `description` (meta, ≤160 chars), `date` (`YYYY-MM-DD`) and optionally
-`seoTitle` (the `<title>`), `updated`, `keywords` (comma-separated) and `checked` (when the facts were last
+`seoTitle` (the `<title>`), `updated` (`YYYY-MM-DD`; both dates are validated), `keywords` (comma-separated) and `checked` (when the facts were last
 verified, shown next to the date) — SEO use in [`seo.md`](seo.md), then Markdown (GFM: tables, code blocks), rendered with `marked` at
 build time (`lib/notes.js`). A line `<!-- subscribe: lead text -->` puts the site's subscribe form there. The HTML is trusted because it is our own text. Images go
 to `frontend/public/notes/` and are linked as `/notes/<file>`; links to the site are relative. A new note
