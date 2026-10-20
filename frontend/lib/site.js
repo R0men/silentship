@@ -32,12 +32,26 @@ const OG_IMAGE = {
  * replaces the layout's whole object — including the file-based opengraph-image of the root segment, which
  * then reaches only the home page. This builds all of it complete for one path.
  */
-export function pageMeta({ path, title, description, type = "website" }) {
+export function pageMeta({ path, title, description, type = "website", image = OG_IMAGE, article, keywords }) {
   return {
     title,
     description,
+    ...(keywords && { keywords }),
     alternates: { canonical: path, types: RSS },
-    openGraph: { type, siteName: SITE.name, locale: "en_US", url: path, title, description, images: [OG_IMAGE] },
-    twitter: { card: "summary_large_image", title, description, images: [OG_IMAGE.url] },
+    openGraph: {
+      type,
+      siteName: SITE.name,
+      locale: "en_US",
+      url: path,
+      title,
+      description,
+      images: [image],
+      // og:article:published_time, modified_time and tag; only for type "article".
+      ...article,
+    },
+    twitter: { card: "summary_large_image", title, description, images: [image.url] },
   };
 }
+
+/** The note that explains how the two CDN endpoints differ; linked from rollout pages. */
+export const ENDPOINTS_NOTE = "/notes/new-office-js-cdn-endpoint";

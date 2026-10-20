@@ -44,6 +44,7 @@ export default function RootLayout({ children }) {
                 <LiveBadge />
                 <SectionLink id="rollouts">Rollouts</SectionLink>
                 <Link href="/reference">API changes</Link>
+                <Link href="/notes">Notes</Link>
                 <a className="nav-rss" href="/rss.xml">
                   RSS
                 </a>
@@ -58,6 +59,7 @@ export default function RootLayout({ children }) {
               </p>
               <p>Not affiliated with Microsoft. Metadata and API-surface diffs only — no Microsoft code.</p>
               <p className="footer-links">
+                <Link href="/notes">Notes</Link>
                 <Link href="/privacy">Privacy</Link>
                 <a href={SITE.repo}>GitHub</a>
                 <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>

@@ -13,6 +13,8 @@ Code: `frontend/` — Next.js 16 (App Router, Turbopack), React 19, JavaScript. 
 | `/rollouts/[channel]/[group]` | `app/rollouts/[channel]/[group]/page.js` — one release of a track (`prod`, `beta`): a progress bar per endpoint (legacy, onecdn) with share and completion time, facts, one file table, "Host files byte-identical on both endpoints" or the files that differ, the `loader-flags-changed` notice only when the flags changed. `/rollouts/onecdn-prod/*` and `/rollouts/onecdn-beta/*` → 301 to the track's page (`redirects` in `next.config.mjs`) | SSR on every request |
 | `/reference` | `app/reference/page.js` — hub: every API type changed by a confirmed rollout, by namespace | SSR on every request |
 | `/reference/[type]` | `app/reference/[type]/page.js` — one API type: state per channel, advice, change history, related types; wording in `lib/apiType.js` ([`seo.md`](seo.md)) | SSR on every request |
+| `/notes` | `app/notes/page.js` — every note, newest first | static at build time |
+| `/notes/[slug]` | `app/notes/[slug]/page.js` — one note: Markdown from `content/notes/<slug>.md` rendered by `lib/notes.js` | static at build time (`generateStaticParams`, unknown slug → 404) |
 | `/privacy` | `app/privacy/page.js`; operator details in `lib/site.js` | static at build time |
 | `/sitemap.xml`, `/robots.txt`, `/llms.txt`, `/opengraph-image` | [`seo.md`](seo.md) | — |
 
@@ -24,6 +26,17 @@ release in flight — or, when nothing rolls, the newest release with how it end
 completion time, a full bar). The list has one row per
 track and build; a row carries an endpoint badge (`divergence`: "legacy only", "onecdn only", "N files
 differ", "loader flags changed") only when the endpoints diverge. There is no endpoint filter.
+
+## Notes
+
+Write-ups (e.g. a rollout we watched end to end) live in the repository as `frontend/content/notes/<slug>.md`:
+front matter with `title` (the h1), `description` (meta, ≤160 chars), `date` (`YYYY-MM-DD`) and optionally
+`seoTitle` (the `<title>`), `updated`, `keywords` (comma-separated) and `checked` (when the facts were last
+verified, shown next to the date) — SEO use in [`seo.md`](seo.md), then Markdown (GFM: tables, code blocks), rendered with `marked` at
+build time (`lib/notes.js`). A line `<!-- subscribe: lead text -->` puts the site's subscribe form there. The HTML is trusted because it is our own text. Images go
+to `frontend/public/notes/` and are linked as `/notes/<file>`; links to the site are relative. A new note
+needs a deploy; the hub, sitemap and `llms.txt` pick it up on their own. Styles: `.prose.post` and
+`.post-list` in `globals.css`.
 
 ## Talking to the backend
 

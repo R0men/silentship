@@ -7,7 +7,7 @@ import { ChannelTag, Severity, ShareBar, TimeAgo } from "@/components/ui";
 import { apiGet } from "@/lib/api";
 import { channelLabel, CHANNELS, ENDPOINTS, fmtDate, groupTitle, pct, STATUS_LABEL } from "@/lib/format";
 import { breadcrumbs, officeJs, techArticle } from "@/lib/jsonLd";
-import { pageMeta } from "@/lib/site";
+import { ENDPOINTS_NOTE, pageMeta } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +47,8 @@ function FlagsNotice({ flags }) {
   const [text] = flags.notice.split(" See Microsoft's");
   return (
     <p className="flags-notice">
-      {text} <a href={flags.docs}>Microsoft&apos;s migration notes</a>
+      {text} <a href={flags.docs}>Microsoft&apos;s migration notes</a> ·{" "}
+      <Link href={ENDPOINTS_NOTE}>what the flags do and who can break</Link>
     </p>
   );
 }
@@ -115,7 +116,10 @@ function EndpointFiles({ r }) {
       ) : (
         "Host files byte-identical on both endpoints."
       )}
-      {LOADER_NOTE[r.loader] && <span className="faint"> {LOADER_NOTE[r.loader]}</span>}
+      {LOADER_NOTE[r.loader] && <span className="faint"> {LOADER_NOTE[r.loader]}</span>}{" "}
+      <Link className="faint-link" href={ENDPOINTS_NOTE}>
+        What differs between the endpoints
+      </Link>
     </p>
   );
 }

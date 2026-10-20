@@ -1108,6 +1108,145 @@ h2 {
   font-weight: 500;
 }
 
+/* Phones: brand, live badge and three links must still fit one line; the badge keeps only its dot. */
+.nav nav a {
+  white-space: nowrap;
+}
+@media (max-width: 420px) {
+  .nav nav {
+    gap: 14px;
+    font-size: 13.5px;
+  }
+  .nav .live-badge {
+    gap: 0;
+    font-size: 0;
+  }
+}
+
+/* ---------- Notes (/notes): rendered Markdown inside .prose.post ---------- */
+
+.post h3 {
+  font-size: 16px;
+  margin: 28px 0 8px;
+}
+.post strong {
+  color: var(--text);
+  font-weight: 500;
+}
+.post code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.post pre {
+  margin: 16px 0;
+  padding: 12px 0 12px 16px;
+  border-left: 1px solid var(--hairline);
+  overflow-x: auto;
+}
+.post-subscribe {
+  margin: 40px 0;
+}
+.post-subscribe > p {
+  margin: 0 0 14px;
+  color: var(--text);
+  font-weight: 500;
+}
+/* .prose p would otherwise enlarge the form's fine print. */
+.post-subscribe .fineprint {
+  font-size: 12.5px;
+  color: var(--faint);
+}
+/* A quiet contextual link inside a muted line (rollout page → endpoints note). */
+.faint-link {
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--faint);
+  text-underline-offset: 3px;
+}
+.faint-link:hover {
+  color: var(--text);
+}
+/* The note's end: every gap around the form and the dividers is the same 40px. */
+.post-more {
+  margin-top: 40px;
+  padding-top: 40px;
+  border-top: 1px solid var(--hairline);
+}
+.post-more ul,
+.post-more li:last-child {
+  margin-bottom: 0;
+}
+/* …and the same 40px down to the footer's divider (8px here + the footer's 32px padding above it). */
+main:has(.post) {
+  padding-bottom: 8px;
+}
+.post-more h2 {
+  font-size: 15px;
+  margin: 0 0 8px;
+  color: var(--muted);
+}
+.post hr {
+  margin: 40px 0;
+  border: 0;
+  border-top: 1px solid var(--hairline);
+}
+.post pre code {
+  overflow-wrap: normal;
+}
+.post img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 24px 0;
+}
+.post table {
+  display: block;
+  overflow-x: auto;
+  margin: 20px 0;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.post th,
+.post td {
+  padding: 8px 20px 8px 0;
+  border-bottom: 1px solid var(--hairline);
+  text-align: left;
+  vertical-align: top;
+  color: #c9cbd1;
+}
+.post th {
+  color: var(--muted);
+  font-weight: 500;
+}
+.post-list {
+  list-style: none;
+  padding: 0 !important;
+  margin: 40px 0 0;
+}
+.post-list li {
+  margin: 0;
+  padding: 20px 0;
+  border-top: 1px solid var(--hairline);
+}
+.post-list time {
+  display: block;
+  font-size: 12.5px;
+}
+.post-list a {
+  font-size: 18px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.post-list a:hover {
+  text-decoration: underline;
+}
+.post-list p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
 
 /* ---------- API type pages (/reference) ---------- */
 

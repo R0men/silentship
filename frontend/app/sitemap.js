@@ -1,5 +1,6 @@
 import { apiGet } from "@/lib/api";
 import { typeHref } from "@/lib/apiType";
+import { listNotes } from "@/lib/notes";
 import { SITE, SITE_URL } from "@/lib/site";
 
 const latest = (rows) => {
@@ -16,6 +17,8 @@ export default async function sitemap() {
   // 200 would tell them every rollout and type page is gone.
   const { rollouts, types = [] } = await apiGet("/api/sitemap");
   const newest = rollouts[0]?.lastModified ? new Date(rollouts[0].lastModified) : undefined;
+  const notes = listNotes();
+  const latestNote = notes[0] ? new Date(notes[0].date) : undefined;
   return [
     { url: `${SITE_URL}/`, lastModified: newest, changeFrequency: "hourly", priority: 1 },
     { url: `${SITE_URL}/privacy`, lastModified: new Date(SITE.updated), changeFrequency: "yearly", priority: 0.2 },
@@ -25,6 +28,13 @@ export default async function sitemap() {
       changeFrequency: "daily",
       priority: 0.7,
     },
+    { url: `${SITE_URL}/notes`, lastModified: latestNote, changeFrequency: "weekly", priority: 0.6 },
+    ...notes.map((n) => ({
+      url: `${SITE_URL}${n.path}`,
+      lastModified: new Date(n.date),
+      changeFrequency: "monthly",
+      priority: 0.7,
+    })),
     ...rollouts.map((r) => ({
       url: `${SITE_URL}/rollouts/${r.channel}/${encodeURIComponent(r.group)}`,
       lastModified: r.lastModified ? new Date(r.lastModified) : undefined,

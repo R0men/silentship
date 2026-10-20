@@ -25,12 +25,14 @@ export function breadcrumbs(items) {
   };
 }
 
-export function techArticle({ path, headline, description, datePublished, dateModified, about }) {
+export function techArticle({ path, headline, description, datePublished, dateModified, about, keywords, image }) {
   return {
     "@context": CONTEXT,
     "@type": "TechArticle",
     headline,
     description,
+    ...(keywords && { keywords: keywords.join(", ") }),
+    ...(image && { image: abs(image) }),
     url: abs(path),
     mainEntityOfPage: abs(path),
     datePublished,

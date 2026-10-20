@@ -26,6 +26,8 @@ the same image.
 | `/rollouts/<channel>/<group>` | `Office.js <build> rollout (production\|beta) — silentship` | `/rollouts/<channel>/<group>` | `og:type=article`; description with share, files, API changes; JSON-LD `TechArticle` (about a `Thing` "Office.js <build>" — not `SoftwareApplication`, which Google rejects without offers or ratings; published = first seen, modified = completed/last seen) + `BreadcrumbList`; a missing rollout → `noindex` + 404 |
 | `/reference` | `Office.js API changes by type — silentship` | `/reference` | hub, grouped by namespace; JSON-LD `CollectionPage` with an `ItemList` of every type page + `BreadcrumbList` |
 | `/reference/<type>` | `<API> <what happened> in Office.js <channels> — silentship`, e.g. `Excel.SensitivityLabelAbacAttribute removed in Office.js beta`; several changed paths → `<type>: N API changes in Office.js` | `/reference/<type>` | `og:type=article`; the h1 repeats the title; JSON-LD `TechArticle` + `BreadcrumbList`; another spelling → 308; unknown → 404 + `noindex` |
+| `/notes` | `Notes — silentship` | `/notes` | list of notes, newest first; JSON-LD `CollectionPage` + `BreadcrumbList` |
+| `/notes/<slug>` | `<seoTitle or title> — silentship`, e.g. `New Office.js CDN endpoint vs. appsforoffice: what changes` | `/notes/<slug>` | `og:type=article` with `article:published_time`, `modified_time` (`updated`) and `article:tag` (`keywords`); its own preview image (`app/notes/[slug]/opengraph-image.js`, the title on the shared design); the h1 is `title`; JSON-LD `TechArticle` with `keywords` and `image` + `BreadcrumbList` |
 | `/privacy` | `Privacy policy — silentship` | `/privacy` | — |
 | any unknown URL | `Page not found — silentship` (`app/not-found.js`) | — | 404 + `noindex` (added by Next) |
 
@@ -45,6 +47,8 @@ would be baked in empty; this way new rollouts appear without a redeploy. Conten
 - `/privacy` — `lastmod` = `SITE.updated`, `yearly`, 0.2;
 - every rollout group from `/api/sitemap` — `lastmod` = max(`lastSeenAt`, `completedAt`), `daily`, priority
   0.8 for prod and 0.6 for beta;
+- `/notes` — `lastmod` = the newest note's date, `weekly`, 0.6; every note — its `date`, `monthly`, 0.7 (read
+  from `content/notes/`, no backend);
 - `/reference` — `lastmod` = the newest type, `daily`, 0.7;
 - every API type page — `lastmod` = the newest change of its rollouts, `weekly`, 0.5.
 
@@ -62,7 +66,7 @@ from `SITE_URL`.
 
 `app/llms.txt/route.js` — Markdown per [llmstxt.org](https://llmstxt.org): what silentship is, how to read
 share and severity, the limits (only the CDN's JavaScript layer, no Microsoft code), links to the changelog,
-RSS and sitemap, the 20 newest rollout groups from `/api/rollouts` and the 20 most recently changed API types from `/api/types`. Each rollout line has the
+RSS and sitemap, every note (title, date, description), the 20 newest rollout groups from `/api/rollouts` and the 20 most recently changed API types from `/api/types`. Each rollout line has the
 from-build, first-seen date, files, state, severity and API change count; each type line counts changes to the
 type and its members. The severity text follows the table in [`api-surface.md`](api-surface.md). Rendered per
 request, `text/plain; charset=utf-8`; a down backend gives 503 with `Retry-After`, never "no rollouts recorded". The JSON API is deliberately not listed: `/api/` is disallowed in `robots.txt`.
@@ -103,3 +107,12 @@ reading as thin or doorway pages:
 - **If Search Console reports many "Crawled – currently not indexed"** type pages, add a `noindex` threshold
   (e.g. beta-only additions with a single event) in `generateMetadata` of `app/reference/[type]/page.js`
   rather than dropping pages.
+
+## Internal links to notes
+
+- The nav and the footer link `/notes` on every page.
+- Every note ends with "More from silentship": up to three other notes, the live rollouts, `/reference`, RSS.
+- Rollout pages link the endpoints note (`ENDPOINTS_NOTE` in `lib/site.js`) under the endpoint comparison
+  ("What differs between the endpoints") and in the `loader-flags-changed` notice. Renaming that note's file
+  means updating `ENDPOINTS_NOTE`.
+- Links inside a note's Markdown are relative (`/rollouts/…`, `/#rollouts`), so they stay on the canonical host.

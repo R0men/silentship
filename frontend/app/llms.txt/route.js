@@ -1,6 +1,7 @@
 import { apiGet } from "@/lib/api";
 import { typeHref } from "@/lib/apiType";
 import { channelLabel, groupTitle, KIND_LABEL, pct } from "@/lib/format";
+import { listNotes } from "@/lib/notes";
 import { SITE, SITE_URL } from "@/lib/site";
 
 // Rendered per request like the sitemap: the list of rollouts must not be frozen at build time.
@@ -57,7 +58,14 @@ Limits: only the JavaScript layer served from the CDN is visible. Breakages insi
 - [Live changelog](${SITE_URL}/): current build per channel, rollouts in progress, recent rollouts
 - [RSS feed](${SITE_URL}/rss.xml): one item per rollout, newest first
 - [Office.js API changes](${SITE_URL}/reference): every class, enum and function whose public API changed, one page per type with its history
+- [Notes](${SITE_URL}/notes): write-ups on observed rollouts and how the monitor works
 - [Sitemap](${SITE_URL}/sitemap.xml): every rollout and API type page
+
+## Notes
+
+${listNotes()
+  .map((n) => `- [${n.title}](${SITE_URL}${n.path}) (${n.date}): ${n.description}`)
+  .join("\n")}
 
 ## Recent rollouts
 
