@@ -16,7 +16,7 @@ const DESCRIPTION =
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "silentship — know when Office.js changes on the CDN",
+    default: "Office.js changelog: live CDN builds and API changes — silentship",
     template: "%s — silentship",
   },
   description: DESCRIPTION,

@@ -11,7 +11,7 @@ import { pageMeta } from "@/lib/site";
 // Data changes every crawl; never prerender at build time. After load, components follow /api/live.
 export const dynamic = "force-dynamic";
 
-const TITLE = "silentship — know when Office.js changes on the CDN";
+const TITLE = "Office.js changelog: live CDN builds and API changes — silentship";
 
 export const metadata = {
   ...pageMeta({

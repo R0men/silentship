@@ -1,7 +1,7 @@
 import { apiGet } from "@/lib/api";
 import { typeHref } from "@/lib/apiType";
 import { listNotes } from "@/lib/notes";
-import { SITE, SITE_URL } from "@/lib/site";
+import { SITE_URL } from "@/lib/site";
 
 const latest = (rows) => {
   const d = rows.map((r) => r.lastModified).filter(Boolean).sort().at(-1);
@@ -21,7 +21,6 @@ export default async function sitemap() {
   const latestNote = notes[0] ? new Date(notes[0].date) : undefined;
   return [
     { url: `${SITE_URL}/`, lastModified: newest, changeFrequency: "hourly", priority: 1 },
-    { url: `${SITE_URL}/privacy`, lastModified: new Date(SITE.updated), changeFrequency: "yearly", priority: 0.2 },
     {
       url: `${SITE_URL}/reference`,
       lastModified: latest(types),

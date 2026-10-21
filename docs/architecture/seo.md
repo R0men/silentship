@@ -22,13 +22,13 @@ the same image.
 
 | Page | title | canonical | Other |
 |---|---|---|---|
-| `/` | `silentship — know when Office.js changes on the CDN` (absolute) | `/` | JSON-LD `WebSite` |
+| `/` | `Office.js changelog: live CDN builds and API changes — silentship` (absolute) | `/` | JSON-LD `WebSite` |
 | `/rollouts/<channel>/<group>` | `Office.js <build> rollout (production\|beta) — silentship` | `/rollouts/<channel>/<group>` | `og:type=article`; description with share, files, API changes; JSON-LD `TechArticle` (about a `Thing` "Office.js <build>" — not `SoftwareApplication`, which Google rejects without offers or ratings; published = first seen, modified = completed/last seen) + `BreadcrumbList`; a missing rollout → `noindex` + 404 |
 | `/reference` | `Office.js API changes by type — silentship` | `/reference` | hub, grouped by namespace; JSON-LD `CollectionPage` with an `ItemList` of every type page + `BreadcrumbList` |
 | `/reference/<type>` | `<API> <what happened> in Office.js <channels> — silentship`, e.g. `Excel.SensitivityLabelAbacAttribute removed in Office.js beta`; several changed paths → `<type>: N API changes in Office.js` | `/reference/<type>` | `og:type=article`; the h1 repeats the title; JSON-LD `TechArticle` + `BreadcrumbList`; another spelling → 308; unknown → 404 + `noindex` |
 | `/notes` | `Notes — silentship` | `/notes` | list of notes, newest first; JSON-LD `CollectionPage` + `BreadcrumbList` |
 | `/notes/<slug>` | `<seoTitle or title> — silentship`, e.g. `New Office.js CDN endpoint vs. appsforoffice: what changes` | `/notes/<slug>` | `og:type=article` with `article:published_time`, `modified_time` (`updated`) and `article:tag` (`keywords`); its own preview image (`app/notes/[slug]/opengraph-image.js`, the title on the shared design); the h1 is `title`; JSON-LD `TechArticle` with `keywords` and `image` + `BreadcrumbList` |
-| `/privacy` | `Privacy policy — silentship` | `/privacy` | — |
+| `/privacy` | `Privacy policy — silentship` | `/privacy` | `noindex, follow`; not in the sitemap (left crawlable in `robots.txt` so the `noindex` is seen) |
 | any unknown URL | `Page not found — silentship` (`app/not-found.js`) | — | 404 + `noindex` (added by Next) |
 
 **Structured data** is built by `frontend/lib/jsonLd.js` (`website`, `techArticle`, `breadcrumbs`,
@@ -44,7 +44,6 @@ JSON-LD from these builders, not hand-written objects.
 would be baked in empty; this way new rollouts appear without a redeploy. Contents:
 
 - `/` — `lastmod` = the newest change of any rollout, `hourly`, priority 1;
-- `/privacy` — `lastmod` = `SITE.updated`, `yearly`, 0.2;
 - every rollout group from `/api/sitemap` — `lastmod` = max(`lastSeenAt`, `completedAt`), `daily`, priority
   0.8 for prod and 0.6 for beta;
 - `/notes` — `lastmod` = the newest note's date, `weekly`, 0.6; every note — its `updated` or else `date`,

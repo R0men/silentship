@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { pageMeta, SITE } from "@/lib/site";
 
-export const metadata = pageMeta({
-  path: "/privacy",
-  title: "Privacy policy",
-  description: "What silentship collects, why, who processes it and how to get it deleted.",
-});
+export const metadata = {
+  ...pageMeta({
+    path: "/privacy",
+    title: "Privacy policy",
+    description: "What silentship collects, why, who processes it and how to get it deleted.",
+  }),
+  // Legal boilerplate, not a search result; links from it are still followed.
+  robots: { index: false, follow: true },
+};
 
 export default function Privacy() {
   return (

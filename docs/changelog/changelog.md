@@ -18,6 +18,10 @@
 
 ## History
 
+- **2026-10-21** — [2026-10-21.md](2026-10-21.md)
+  - `[Feature]` Home page title leads with "Office.js changelog"
+  - `[Feature]` `/privacy` is `noindex` and out of the sitemap
+
 - **2026-10-20** — [2026-10-20.md](2026-10-20.md)
   - `[Feature]` Notes: `/notes`, the first note on what the new Office.js CDN endpoint changes
   - `[Feature]` Rollout pages link the endpoints note
