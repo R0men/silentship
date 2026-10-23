@@ -72,7 +72,10 @@ function summarize(g) {
     minShare: g.minShare,
     status: groupStatus(g),
     severity: SEVERITY_NAME[g.sevRank],
+    // Per file: the same change in 19 host files counts 19 times. Pages lead with uniqueApiChanges.
     apiChangeCount: g.apiChangeCount,
+    uniqueApiChanges: 0,
+    apiChangeFiles: 0,
     firstSeenAt: g.firstSeenAt,
     lastSeenAt: g.lastSeenAt,
     completedAt: g.rolling === 0 ? g.completedAt : null,
@@ -108,14 +111,52 @@ const GROUP_STAGE = {
     complete: countStatus("complete"),
     abandoned: countStatus("abandoned"),
     confirmed: CONFIRMED,
+    members: { $push: { id: "$_id", path: "$path" } },
   },
 };
+
+/**
+ * API changes of each group as the rollout page lists them (groupApiChanges): one per path and kind, however
+ * many host files carry it; apiChangeFiles is how many files carry at least one.
+ */
+async function countApiChanges(rows, out) {
+  const owner = new Map();
+  rows.forEach((g, i) => g.members.forEach((m) => owner.set(String(m.id), { i, path: m.path })));
+  if (!owner.size) return;
+  const { apiChanges } = await db();
+  const changes = await apiChanges
+    .aggregate([
+      { $match: { rolloutId: { $in: rows.flatMap((g) => g.members.map((m) => m.id)) } } },
+      { $group: { _id: { path: "$path", kind: "$kind" }, ids: { $addToSet: "$rolloutId" } } },
+    ])
+    .toArray();
+  const files = out.map(() => new Set());
+  for (const c of changes) {
+    const groups = new Set();
+    for (const id of c.ids) {
+      const m = owner.get(String(id));
+      groups.add(m.i);
+      files[m.i].add(m.path);
+    }
+    for (const i of groups) out[i].uniqueApiChanges++;
+  }
+  out.forEach((g, i) => (g.apiChangeFiles = files[i].size));
+}
 
 /**
  * Confirmed rollout groups, newest first. `before` is a firstSeenAt cursor for paging; `activeOnly` keeps
  * groups with at least one file still rolling. The only place group numbers are computed.
  */
-export async function listGroups({ channel, severity, before, activeOnly = false, group, groups, limit = 30 }) {
+export async function listGroups({
+  channel,
+  severity,
+  before,
+  activeOnly = false,
+  group,
+  groups,
+  limit = 30,
+  apiCounts = true,
+}) {
   const { rollouts } = await db();
   const match = { region: config.region };
   if (channel) match.channel = channel;
@@ -128,7 +169,9 @@ export async function listGroups({ channel, severity, before, activeOnly = false
   const rows = await rollouts
     .aggregate([{ $match: match }, GROUP_STAGE, { $match: post }, { $sort: { firstSeenAt: -1 } }, { $limit: limit }])
     .toArray();
-  return rows.map(summarize);
+  const out = rows.map(summarize);
+  if (apiCounts) await countApiChanges(rows, out);
+  return out;
 }
 
 /**
@@ -290,6 +333,8 @@ const endpointView = (g) => ({
   files: g.files,
   severity: g.severity,
   apiChangeCount: g.apiChangeCount,
+  uniqueApiChanges: g.uniqueApiChanges,
+  apiChangeFiles: g.apiChangeFiles,
   firstSeenAt: g.firstSeenAt,
   completedAt: g.completedAt,
 });
@@ -310,12 +355,15 @@ async function stableBuilds(channel, keys) {
 }
 
 /**
- * Where the endpoints of each release differ: host files whose version is not the same (the group's rollout
- * on that endpoint, else the endpoint's stable version), and loader security-default flags that changed
- * (loader-flags-changed). office.js is left out of the file comparison: it always differs by the flags.
+ * Where the endpoints of each release differ. Files are compared only where both endpoints serve this build
+ * (the group's rollout there, or a stable version stamped with it): a file one endpoint still serves on an
+ * older build is not a difference but `notYetOn` that endpoint. Also loader security-default flags that
+ * changed (loader-flags-changed). office.js is left out of the file comparison: it always differs by the flags.
  */
 async function compareEndpoints(ep, releases) {
-  for (const r of releases) Object.assign(r, { differentFiles: [], flagsChanged: false, diverged: false });
+  for (const r of releases) {
+    Object.assign(r, { differentFiles: [], notYetOn: { legacy: [], onecdn: [] }, flagsChanged: false, diverged: false });
+  }
   if (!releases.length) return;
   const { rollouts, fileStates } = await db();
   const channels = [ep.legacy, ep.onecdn].filter(Boolean);
@@ -333,28 +381,34 @@ async function compareEndpoints(ep, releases) {
     ep.onecdn
       ? fileStates
           .find({ region: config.region, channel: { $in: channels } })
-          .project({ channel: 1, path: 1, stableSha: 1 })
+          .project({ channel: 1, path: 1, stableSha: 1, stableBuild: 1 })
           .toArray()
       : [],
   ]);
-  const stable = new Map(states.map((s) => [`${s.channel}/${s.path}`, s.stableSha]));
+  const stable = new Map(states.map((s) => [`${s.channel}/${s.path}`, s]));
   for (const r of releases) {
     const own = docs.filter((d) => d.group === r.group);
     r.flagsChanged = own.some((d) => d.flagsChanged);
-    if (!ep.onecdn) {
-      r.diverged = r.flagsChanged;
-      continue;
-    }
+    r.diverged = r.flagsChanged;
+    if (!ep.onecdn) continue;
     // Sorted oldest first, so a newer rollout of the same file wins.
     const version = new Map(own.map((d) => [`${d.channel}/${d.path}`, d.toSha]));
+    // The endpoint's bytes of this build (null for a removal); undefined while it does not serve the build.
     const versionOf = (channel, path) => {
       const k = `${channel}/${path}`;
-      return version.has(k) ? version.get(k) : stable.get(k);
+      if (version.has(k)) return version.get(k);
+      const s = stable.get(k);
+      return s && s.stableBuild === r.group ? s.stableSha : undefined;
     };
-    const both = Boolean(r.endpoints.legacy && r.endpoints.onecdn);
     const paths = [...new Set(own.map((d) => d.path))].filter((p) => p !== LOADER_PATH).sort();
-    r.differentFiles = both ? paths.filter((p) => versionOf(ep.legacy, p) !== versionOf(ep.onecdn, p)) : [];
-    r.diverged = !both || r.differentFiles.length > 0 || r.flagsChanged;
+    for (const p of paths) {
+      const legacy = versionOf(ep.legacy, p);
+      const onecdn = versionOf(ep.onecdn, p);
+      if (legacy === undefined) r.notYetOn.legacy.push(p);
+      else if (onecdn === undefined) r.notYetOn.onecdn.push(p);
+      else if (legacy !== onecdn) r.differentFiles.push(p);
+    }
+    r.diverged = r.differentFiles.length > 0 || r.flagsChanged;
   }
 }
 
@@ -485,7 +539,7 @@ const splitKey = (k) => ({ channel: k.slice(0, k.indexOf("/")), group: k.slice(k
 async function confirmedGroups(keys) {
   const out = new Map();
   for (const k of new Set(keys)) {
-    const [summary] = await listGroups({ ...splitKey(k), limit: 1 });
+    const [summary] = await listGroups({ ...splitKey(k), limit: 1, apiCounts: false });
     if (summary) out.set(k, summary);
   }
   return out;
@@ -730,7 +784,7 @@ export async function overview() {
     });
   }
   const since = new Date(Date.now() - 30 * 24 * 3600_000);
-  const recent = await listGroups({ before: null, limit: 500 });
+  const recent = await listGroups({ before: null, limit: 500, apiCounts: false });
   const last30 = recent.filter((g) => new Date(g.firstSeenAt) >= since);
   // A build reaching both tracks and both endpoints is four groups but one build; removals and unstamped
   // changes are no build.
@@ -739,6 +793,18 @@ export async function overview() {
     last30.filter((g) => g.severity === "high").map((g) => g.toBuild ?? `${legacyOf(g.channel)}/${g.group}`),
   );
   return { channels, stats: { rollouts30d: builds.size, high30d: high.size } };
+}
+
+/** Rollouts in the home page list and the live snapshot. */
+export const HOME_ROLLOUTS = 30;
+
+/**
+ * Everything the home page shows — headline, channel cards, rollout list — from one call, so the server
+ * render, /api/home and the live snapshot cannot disagree; the list is listReleases, as in the RSS feed.
+ */
+export async function homeSnapshot() {
+  const [ov, rollouts] = await Promise.all([overview(), listReleases({ limit: HOME_ROLLOUTS })]);
+  return { overview: ov, rollouts, at: new Date().toISOString() };
 }
 
 /**

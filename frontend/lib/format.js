@@ -66,15 +66,31 @@ export const ENDPOINTS = {
   onecdn: { label: "onecdn", host: "officeapis.public.onecdn.static.microsoft" },
 };
 
-/** Why a release's endpoints differ, in a few words; null when they agree. */
+/**
+ * Why a release's endpoints differ, in a few words; null when they agree. Only files both endpoints serve
+ * on this build are compared: one still on an older build is `notYetOn`, not a difference.
+ */
 export function divergence(r) {
   if (!r.diverged) return null;
   // The flags first: on legacy they stop loading MicrosoftAjax, whatever else differs.
   if (r.flagsChanged) return "loader flags changed";
-  if (r.onecdnCrawled && !r.endpoints?.onecdn) return "legacy only";
-  if (!r.endpoints?.legacy) return "onecdn only";
   if (r.differentFiles?.length) return r.differentFiles.length === 1 ? "1 file differs" : `${r.differentFiles.length} files differ`;
   return "endpoints differ";
+}
+
+/** "not yet on onecdn" while one endpoint still serves some files of the release on an older build. */
+export function notYetOn(r) {
+  if (!r.onecdnCrawled) return null;
+  const late = Object.keys(ENDPOINTS).filter((e) => !r.endpoints?.[e] || r.notYetOn?.[e]?.length);
+  return late.length === 1 ? `not yet on ${ENDPOINTS[late[0]].label}` : null;
+}
+
+export const plural = (n, one) => `${n} ${one}${n === 1 ? "" : "s"}`;
+
+/** "5 API changes in 19 files": unique changes lead, the files that carry them come second. */
+export function apiChangesText(g) {
+  if (!g.uniqueApiChanges) return "No public API changes";
+  return `${plural(g.uniqueApiChanges, "API change")} in ${plural(g.apiChangeFiles, "file")}`;
 }
 
 export const channelLabel = (channel) => CHANNELS[channel]?.label ?? channel;

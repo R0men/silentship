@@ -5,7 +5,7 @@ import JsonLd from "@/components/JsonLd";
 import { LiveRefresh } from "@/components/Live";
 import { ChannelTag, Severity, ShareBar, TimeAgo } from "@/components/ui";
 import { apiGet } from "@/lib/api";
-import { channelLabel, CHANNELS, ENDPOINTS, fmtDate, groupTitle, pct, STATUS_LABEL } from "@/lib/format";
+import { apiChangesText, channelLabel, CHANNELS, ENDPOINTS, fmtDate, groupTitle, pct, plural, STATUS_LABEL } from "@/lib/format";
 import { breadcrumbs, officeJs, techArticle } from "@/lib/jsonLd";
 import { ENDPOINTS_NOTE, pageMeta } from "@/lib/site";
 
@@ -23,7 +23,7 @@ function describe(r) {
   return {
     path: `/rollouts/${r.channel}/${encodeURIComponent(r.group)}`,
     title: `Office.js ${groupTitle(r)} rollout (${channel})`,
-    description: `Office.js ${groupTitle(r)} on ${pct(r.status === "complete" ? 1 : r.share)} of sampled CDN edges across ${r.files} files, ${r.apiChangeCount} API changes. First seen ${fmtDate(r.firstSeenAt)}.`,
+    description: `Office.js ${groupTitle(r)}: ${apiChangesText(r).replace(/^No/, "no")}, on ${pct(r.status === "complete" ? 1 : r.share)} of sampled CDN edges across ${plural(r.files, "file")}. First seen ${fmtDate(r.firstSeenAt)}.`,
   };
 }
 
@@ -94,28 +94,41 @@ const LOADER_NOTE = {
   different: "office.js differs beyond the security-default flags.",
 };
 
-/** Whether the endpoints serve the same host files for this build. */
+const FileList = ({ files }) =>
+  files.map((f, i) => (
+    <span key={f}>
+      {i > 0 && ", "}
+      <span className="mono">{f}</span>
+    </span>
+  ));
+
+/**
+ * Whether the endpoints serve the same host files for this build. Only files both serve on it are compared;
+ * a file one endpoint still serves on an older build is listed as not there yet, not as a difference.
+ */
 function EndpointFiles({ r }) {
   if (!r.onecdnCrawled) return null;
   if (!r.endpoints.legacy || !r.endpoints.onecdn) {
     return <p className="note">Seen on {r.endpoints.legacy ? "legacy" : "onecdn"} only so far.</p>;
   }
+  const late = Object.keys(ENDPOINTS).filter((e) => r.notYetOn?.[e]?.length);
   return (
     <p className={`note ${r.differentFiles.length ? "endpoints-differ" : ""}`}>
       {r.differentFiles.length ? (
         <>
-          Host files that differ between endpoints:{" "}
-          {r.differentFiles.map((f, i) => (
-            <span key={f}>
-              {i > 0 && ", "}
-              <span className="mono">{f}</span>
-            </span>
-          ))}
-          .
+          Host files that differ between endpoints on this build: <FileList files={r.differentFiles} />.
         </>
+      ) : late.length ? (
+        "Host files both endpoints serve on this build are byte-identical."
       ) : (
         "Host files byte-identical on both endpoints."
       )}
+      {late.map((e) => (
+        <span key={e}>
+          {" "}
+          Not yet on {ENDPOINTS[e].label}: <FileList files={r.notYetOn[e]} />.
+        </span>
+      ))}
       {LOADER_NOTE[r.loader] && <span className="faint"> {LOADER_NOTE[r.loader]}</span>}{" "}
       <Link className="faint-link" href={ENDPOINTS_NOTE}>
         What differs between the endpoints
@@ -187,13 +200,23 @@ export default async function RolloutPage({ params }) {
         </div>
         <div>
           <dt>Files</dt>
-          <dd>{r.files}</dd>
+          <dd>
+            {r.files}
+            {Object.keys(ENDPOINTS)
+              .filter((e) => r.notYetOn?.[e]?.length)
+              .map((e) => (
+                <span key={e} className="faint">
+                  {" "}
+                  ({r.notYetOn[e].length} not yet on {ENDPOINTS[e].label})
+                </span>
+              ))}
+          </dd>
         </div>
         <div>
           <dt>API changes</dt>
           <dd>
-            {r.apiChanges.length}
-            <span className="faint"> ({r.apiChangeCount} across files)</span>
+            {r.uniqueApiChanges}
+            {r.uniqueApiChanges > 0 && <span className="faint"> in {plural(r.apiChangeFiles, "file")}</span>}
           </dd>
         </div>
         <div>

@@ -91,11 +91,10 @@ main,
   letter-spacing: -0.01em;
 }
 .brand-mark {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 18px rgba(255, 255, 255, 0.55);
+  width: 22px;
+  height: 20px;
+  color: #fff;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.45));
 }
 .nav nav {
   display: flex;

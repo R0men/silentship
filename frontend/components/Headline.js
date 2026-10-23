@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { track } from "@/lib/analytics";
+import { apiChangesText } from "@/lib/format";
 import { AnimatedNumber, useLive } from "./Live";
 
 /** The biggest rollout in flight on a channel (most files), if any. */
@@ -55,7 +56,7 @@ export default function Headline({ initial }) {
             href={href("prod", g)}
             onClick={() => track("open_rollout", { channel: "prod", severity: g.severity, from: "headline" })}
           >
-            {g.apiChangeCount ? `${g.apiChangeCount} API changes so far →` : "No public API changes so far →"}
+            {apiChangesText(g)} so far →
           </Link>
         </p>
       </>
@@ -85,7 +86,7 @@ export default function Headline({ initial }) {
             href={href("beta", g)}
             onClick={() => track("open_rollout", { channel: "beta", severity: g.severity, from: "headline" })}
           >
-            {g.apiChangeCount ? `${g.apiChangeCount} API changes →` : "See the rollout →"}
+            {g.uniqueApiChanges ? `${apiChangesText(g)} →` : "See the rollout →"}
           </Link>
         </p>
       </>

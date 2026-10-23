@@ -23,7 +23,7 @@ the same image.
 | Page | title | canonical | Other |
 |---|---|---|---|
 | `/` | `Office.js changelog: live CDN builds and API changes — silentship` (absolute) | `/` | JSON-LD `WebSite` |
-| `/rollouts/<channel>/<group>` | `Office.js <build> rollout (production\|beta) — silentship` | `/rollouts/<channel>/<group>` | `og:type=article`; description with share, files, API changes; JSON-LD `TechArticle` (about a `Thing` "Office.js <build>" — not `SoftwareApplication`, which Google rejects without offers or ratings; published = first seen, modified = completed/last seen) + `BreadcrumbList`; a missing rollout → `noindex` + 404 |
+| `/rollouts/<channel>/<group>` | `Office.js <build> rollout (production\|beta) — silentship` | `/rollouts/<channel>/<group>` | `og:type=article`; description leading with unique API changes ("5 API changes in 19 files"), then share and files; JSON-LD `TechArticle` (about a `Thing` "Office.js <build>" — not `SoftwareApplication`, which Google rejects without offers or ratings; published = first seen, modified = completed/last seen) + `BreadcrumbList`; a missing rollout → `noindex` + 404 |
 | `/reference` | `Office.js API changes by type — silentship` | `/reference` | hub, grouped by namespace; JSON-LD `CollectionPage` with an `ItemList` of every type page + `BreadcrumbList` |
 | `/reference/<type>` | `<API> <what happened> in Office.js <channels> — silentship`, e.g. `Excel.SensitivityLabelAbacAttribute removed in Office.js beta`; several changed paths → `<type>: N API changes in Office.js` | `/reference/<type>` | `og:type=article`; the h1 repeats the title; JSON-LD `TechArticle` + `BreadcrumbList`; another spelling → 308; unknown → 404 + `noindex` |
 | `/notes` | `Notes — silentship` | `/notes` | list of notes, newest first; JSON-LD `CollectionPage` + `BreadcrumbList` |
@@ -66,8 +66,8 @@ from `SITE_URL`.
 
 `app/llms.txt/route.js` — Markdown per [llmstxt.org](https://llmstxt.org): what silentship is, how to read
 share and severity, the limits (only the CDN's JavaScript layer, no Microsoft code), links to the changelog,
-RSS and sitemap, every note (title, date, description), the 20 newest rollout groups from `/api/rollouts` and the 20 most recently changed API types from `/api/types`. Each rollout line has the
-from-build, first-seen date, files, state, severity and API change count; each type line counts changes to the
+RSS and sitemap, every note (title, date, description), the 20 newest rollout groups from `/api/rollouts` and the 20 most recently changed API types from `/api/types`. Each rollout line leads with
+the unique API changes and the files carrying them, then the from-build, first-seen date, files, state and severity; each type line counts changes to the
 type and its members. The severity text follows the table in [`api-surface.md`](api-surface.md). Rendered per
 request, `text/plain; charset=utf-8`; a down backend gives 503 with `Retry-After`, never "no rollouts recorded". The JSON API is deliberately not listed: `/api/` is disallowed in `robots.txt`.
 

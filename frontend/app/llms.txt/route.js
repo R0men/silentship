@@ -1,6 +1,6 @@
 import { apiGet } from "@/lib/api";
 import { typeHref } from "@/lib/apiType";
-import { channelLabel, groupTitle, KIND_LABEL, pct } from "@/lib/format";
+import { apiChangesText, channelLabel, groupTitle, KIND_LABEL, pct } from "@/lib/format";
 import { listNotes } from "@/lib/notes";
 import { SITE, SITE_URL } from "@/lib/site";
 
@@ -17,7 +17,7 @@ function rolloutLine(g) {
   const from = g.fromBuilds.length ? `from ${g.fromBuilds.join(", ")}, ` : "";
   return (
     `- [Office.js ${groupTitle(g)} (${channelLabel(g.channel).toLowerCase()})](${SITE_URL}/rollouts/${g.channel}/${encodeURIComponent(g.group)}): ` +
-    `${from}first seen ${day(g.firstSeenAt)}, ${g.files} file(s), ${state}, severity ${g.severity}, ${g.apiChangeCount} API change(s)`
+    `${apiChangesText(g)}; ${from}first seen ${day(g.firstSeenAt)}, ${g.files} file(s), ${state}, severity ${g.severity}`
   );
 }
 

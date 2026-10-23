@@ -10,6 +10,7 @@ import {
   crawlerHealth,
   getApiType,
   getRelease,
+  homeSnapshot,
   isTrack,
   listApiTypes,
   listReleases,
@@ -24,6 +25,13 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GROUP_RE = /^[\w.-]{1,80}$/;
 
 const pct = (share) => `${Math.round(share * 100)}%`;
+const plural = (n, one) => `${n} ${one}${n === 1 ? "" : "s"}`;
+
+/** "5 API changes in 19 files": unique changes first, the files that carry them second. */
+export function apiChangesLine(g) {
+  if (!g.uniqueApiChanges) return "no public API changes";
+  return `${plural(g.uniqueApiChanges, "API change")} in ${plural(g.apiChangeFiles, "file")}`;
+}
 
 export function rssFeed(groups, publicUrl) {
   const items = groups
@@ -31,9 +39,11 @@ export function rssFeed(groups, publicUrl) {
       const link = `${publicUrl}/rollouts/${g.channel}/${encodeURIComponent(g.group)}`;
       const what = g.toBuild ? `build ${g.toBuild}` : g.removal ? "files removed" : "unversioned file change";
       const title = `[${g.severity}] Office.js ${g.channel}: ${what}`;
+      const api = apiChangesLine(g);
       const description =
-        `${g.files} file(s), ${g.status === "complete" ? "rollout complete" : `on ~${pct(g.share)} of sampled edges`}, ` +
-        `${g.apiChangeCount} API change(s).${g.fromBuilds.length ? ` From ${g.fromBuilds.join(", ")}.` : ""}`;
+        `${api[0].toUpperCase()}${api.slice(1)}. ` +
+        `${plural(g.files, "file")}, ${g.status === "complete" ? "rollout complete" : `on ~${pct(g.share)} of sampled edges`}.` +
+        `${g.fromBuilds.length ? ` From ${g.fromBuilds.join(", ")}.` : ""}`;
       return (
         `<item><title>${esc(title)}</title><link>${esc(link)}</link><guid isPermaLink="true">${esc(link)}</guid>` +
         `<pubDate>${new Date(g.firstSeenAt).toUTCString()}</pubDate><description>${esc(description)}</description></item>`
@@ -73,6 +83,9 @@ export async function buildServer() {
   });
 
   app.get("/api/overview", async () => overview());
+
+  /** The home page in one call: the same snapshot /api/live pushes. */
+  app.get("/api/home", async () => homeSnapshot());
 
   /** Releases (one per track and build, both endpoints), newest first; `channel` is the track. */
   app.get("/api/rollouts", async (req) => {

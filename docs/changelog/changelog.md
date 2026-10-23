@@ -18,6 +18,12 @@
 
 ## History
 
+- **2026-10-23** — [2026-10-23.md](2026-10-23.md)
+  - `[Bug Fix]` Home page and its live updates come from one snapshot, never older than the RSS feed
+  - `[Bug Fix]` Endpoints compared only on the build both serve; the rest is "not yet on <endpoint>"
+  - `[Feature]` Unique API changes lead everywhere: "5 API changes in 19 files"
+  - `[Style]` Header logo is the white arrow
+
 - **2026-10-21** — [2026-10-21.md](2026-10-21.md)
   - `[Feature]` Home page title leads with "Office.js changelog"
   - `[Feature]` `/privacy` is `noindex` and out of the sitemap

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { track, trackOnce } from "@/lib/analytics";
-import { CHANNELS, divergence, groupTitle, pct, STATUS_LABEL } from "@/lib/format";
+import { apiChangesText, CHANNELS, divergence, groupTitle, notYetOn, pct, STATUS_LABEL } from "@/lib/format";
 import { ChannelTag, Segmented, Severity, ShareBar, TimeAgo } from "./ui";
 import { useToast } from "./Toast";
 import { useLive, useLiveEvent } from "./Live";
@@ -36,6 +36,7 @@ function Row({ g }) {
           <span className="mono">{groupTitle(g)}</span>
           <ChannelTag channel={g.channel} />
           {divergence(g) && <span className="tag tag-diverged">{divergence(g)}</span>}
+          {notYetOn(g) && <span className="tag">{notYetOn(g)}</span>}
         </div>
         <div className="row-sub">
           {g.fromBuilds.length ? `from ${g.fromBuilds.join(", ")} · ` : ""}
@@ -53,8 +54,8 @@ function Row({ g }) {
         <span>
           <b>{g.files}</b> files
         </span>
-        <span>
-          <b>{g.apiChangeCount}</b> API
+        <span title={apiChangesText(g)}>
+          <b>{g.uniqueApiChanges}</b> API
         </span>
       </div>
       <span className="row-arrow" aria-hidden="true">

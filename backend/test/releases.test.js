@@ -91,8 +91,13 @@ describe("releases", () => {
     expect(byGroup.get("16.0.5").diverged).toBe(false);
     expect(byGroup.get("16.0.6").diverged).toBe(false);
     expect(byGroup.get("16.0.7")).toMatchObject({ diverged: true, differentFiles: ["word-web-16.00.js"] });
-    // OneCDN only: numbers from OneCDN, legacy not seen.
-    expect(byGroup.get("16.0.8")).toMatchObject({ diverged: true, severity: "medium", endpoints: { legacy: null } });
+    // OneCDN only: numbers from OneCDN, legacy not seen — not there yet, not a difference.
+    expect(byGroup.get("16.0.8")).toMatchObject({
+      diverged: false,
+      severity: "medium",
+      endpoints: { legacy: null },
+      notYetOn: { legacy: ["excel-web-16.00.js"], onecdn: [] },
+    });
     expect(byGroup.get("16.0.9")).toMatchObject({ diverged: true, flagsChanged: true, differentFiles: [] });
   });
 

@@ -39,10 +39,14 @@ export function LiveProvider({ children }) {
   );
 }
 
-/** Latest live snapshot, or `initial` (server-rendered) until the first event arrives. */
+/**
+ * Latest live snapshot, or `initial` (server-rendered) until the first event arrives. A snapshot older than
+ * the server render never replaces it: both come from the same homeSnapshot, the newer one wins.
+ */
 export function useLive(initial) {
   const { data, connected } = useContext(LiveContext);
-  return { data: data ?? initial, connected, live: data !== null };
+  const stale = data && initial?.at && data.at < initial.at;
+  return { data: stale ? initial : (data ?? initial), connected, live: data !== null };
 }
 
 /** Call `fn(snapshot)` on every update after mount (not for the snapshot sent on connect). */

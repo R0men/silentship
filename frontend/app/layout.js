@@ -37,7 +37,17 @@ export default function RootLayout({ children }) {
           <ToastProvider>
             <header className="nav">
               <Link className="brand" href="/">
-                <span className="brand-mark" aria-hidden="true" />
+                {/* The arrow of app/icon.svg, without its tile. */}
+                <svg className="brand-mark" viewBox="7 8 18 16" aria-hidden="true">
+                  <path
+                    d="M9 21.5 14 10l3.2 7.4L19.5 13 23 21.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
                 <span>{SITE.name}</span>
               </Link>
               <nav>

@@ -9,8 +9,8 @@ Code: `frontend/` — Next.js 16 (App Router, Turbopack), React 19, JavaScript. 
 
 | Route | File | Rendering |
 |---|---|---|
-| `/` | `app/page.js` — headline with live numbers, subscribe form, channel status, rollout feed | SSR on every request (`force-dynamic`) |
-| `/rollouts/[channel]/[group]` | `app/rollouts/[channel]/[group]/page.js` — one release of a track (`prod`, `beta`): a progress bar per endpoint (legacy, onecdn) with share and completion time, facts, one file table, "Host files byte-identical on both endpoints" or the files that differ, the `loader-flags-changed` notice only when the flags changed. `/rollouts/onecdn-prod/*` and `/rollouts/onecdn-beta/*` → 301 to the track's page (`redirects` in `next.config.mjs`) | SSR on every request |
+| `/` | `app/page.js` — headline with live numbers, subscribe form, channel status, rollout feed; all from one `/api/home` snapshot, then `/api/live` | SSR on every request (`force-dynamic`) |
+| `/rollouts/[channel]/[group]` | `app/rollouts/[channel]/[group]/page.js` — one release of a track (`prod`, `beta`): a progress bar per endpoint (legacy, onecdn) with share and completion time, facts, one file table, "Host files byte-identical on both endpoints" or the files of this build that differ, files "not yet on" an endpoint still on an older build, the `loader-flags-changed` notice only when the flags changed. `/rollouts/onecdn-prod/*` and `/rollouts/onecdn-beta/*` → 301 to the track's page (`redirects` in `next.config.mjs`) | SSR on every request |
 | `/reference` | `app/reference/page.js` — hub: every API type changed by a confirmed rollout, by namespace | SSR on every request |
 | `/reference/[type]` | `app/reference/[type]/page.js` — one API type: state per channel, advice, change history, related types; wording in `lib/apiType.js` ([`seo.md`](seo.md)) | SSR on every request |
 | `/notes` | `app/notes/page.js` — every note, newest first | static at build time |
@@ -24,8 +24,10 @@ beta (`CHANNELS` in `lib/format.js`) — because the legacy and OneCDN endpoints
 cards; under the build, "Same build on legacy and onecdn" or each endpoint's build, then a share bar per
 release in flight — or, when nothing rolls, the newest release with how it ended ("Complete 16.0.20606.15070",
 completion time, a full bar). The list has one row per
-track and build; a row carries an endpoint badge (`divergence`: "legacy only", "onecdn only", "N files
-differ", "loader flags changed") only when the endpoints diverge. There is no endpoint filter.
+track and build; a row carries an endpoint badge (`divergence`: "N files differ", "loader flags changed") only
+when the endpoints diverge on the same build, and a neutral "not yet on onecdn" (`notYetOn`) while one endpoint
+still serves files on an older build. API counts everywhere are unique changes first, files second
+(`apiChangesText`: "5 API changes in 19 files"). There is no endpoint filter.
 
 ## Notes
 
