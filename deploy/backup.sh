@@ -13,6 +13,8 @@
 
 main() {
   set -euo pipefail
+  # Dumps hold subscriber emails: only the service user may read them.
+  umask 077
   local app_dir="${APP_DIR:-$HOME/silentship}"
   log() { echo "[backup $(date -u +%H:%M:%S)] $*"; }
 
