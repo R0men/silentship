@@ -23,7 +23,7 @@ export default function Privacy() {
       <p>
         {SITE.name} monitors the public Office.js CDN and emails subscribers when Microsoft rolls out changes. This page
         explains the little personal data that involves. The service is run by {SITE.operator}, who is responsible for
-        it. Questions or requests: <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
+        it. Questions or requests: <a href={`mailto:${SITE.privacyEmail}`}>{SITE.privacyEmail}</a>.
       </p>
 
       <h2>What we collect</h2>
@@ -35,6 +35,10 @@ export default function Privacy() {
         <li>
           <b>Timestamps</b> of when you subscribed, confirmed and unsubscribed, and when we sent confirmation emails (so
           nobody can flood your inbox through our form).
+        </li>
+        <li>
+          <b>Where you came from</b> when you subscribed, as one word: the campaign name in the link (utm_source), else
+          the referring site&apos;s domain, else &quot;direct&quot; — never the full address of the page.
         </li>
         <li>
           <b>Your IP address</b>, for a short time in server memory to rate-limit the subscription form, and in server
@@ -83,7 +87,7 @@ export default function Privacy() {
       <p>
         Depending on where you live (for example under the GDPR), you can ask to access, correct, export or delete your
         data, object to its processing, and complain to a data protection authority. Email{" "}
-        <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we will reply within 30 days.
+        <a href={`mailto:${SITE.privacyEmail}`}>{SITE.privacyEmail}</a> and we will reply within 30 days.
       </p>
 
       <h2>Changes</h2>

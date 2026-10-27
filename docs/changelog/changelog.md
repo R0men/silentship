@@ -6,8 +6,9 @@
   `.next` folder the running Next process serves from (`deploy/deploy.sh`). Moving a finished `.next` from
   another folder does not work: Next 16 bakes the `distDir` name into its chunks. An option is release
   folders behind a symlink, with the unit's `WorkingDirectory` pointing at the symlink.
-- 🔵 **No automated backups of `data/archive`.** The archive cannot be rebuilt after the fact
-  (`../SETUP.md`, "Backups").
+- 🔵 **Backups and the healthcheck are not set up on the server yet:** install `mongodb-database-tools` and
+  rclone, enable `silentship-backup.timer`, set `BACKUP_RCLONE_REMOTE`, `ARCHIVE_REMOTE` (private),
+  `HEALTHCHECK_URL`, `MAIL_REPLY_TO` (`../SETUP.md`, "Backups", "Monitoring").
 - 🔵 **OneCDN edge spread:** compare how many distinct edges each endpoint reaches from the server, by the
   `a=` field of `Akamai-Request-BC` (`architecture/cdn-facts.md`); from one home network both landed on the
   same edge.
@@ -17,6 +18,16 @@
   Webmaster Tools.
 
 ## History
+
+- **2026-10-27** — [2026-10-27.md](2026-10-27.md)
+  - `[Bug Fix]` Home headline names the release in flight and its severity; cards show both endpoints and the previous build
+  - `[Bug Fix]` A release is dated from the endpoint that served it first; dates show UTC next to "ago"
+  - `[Bug Fix]` No "not yet on onecdn" on a build OneCDN started on
+  - `[Feature]` Release pages explain themselves: summary, verdict, email alerts and write-up links
+  - `[Bug Fix]` Emails and Slack count unique API changes, as the site does
+  - `[Feature]` Footer contact `hello@`; notes feed `/notes/rss.xml`
+  - `[Feature]` Subscriber source, welcome email, Reply-To
+  - `[Infra]` Healthcheck ping after every crawl; nightly backups with rotation and off-site copy
 
 - **2026-10-23** — [2026-10-23.md](2026-10-23.md)
   - `[Bug Fix]` Home page and its live updates come from one snapshot, never older than the RSS feed

@@ -12,6 +12,22 @@ export function track(name, data) {
   send();
 }
 
+/**
+ * Where a subscriber came from, stored with the subscription: `utm_source` of the page, else the domain of an
+ * outside referrer, else "direct". Only this word — never the full URL. The backend cleans it again.
+ */
+export function signupSource() {
+  try {
+    const utm = new URLSearchParams(window.location.search).get("utm_source");
+    if (utm) return utm.slice(0, 64);
+    const ref = document.referrer ? new URL(document.referrer).hostname : "";
+    if (ref && ref !== window.location.hostname) return ref.replace(/^www\./, "");
+  } catch {
+    // A malformed referrer is no source.
+  }
+  return "direct";
+}
+
 /** `track`, at most once per visit (browser tab session); storage can be unavailable, then once per call site. */
 export function trackOnce(name, data) {
   const key = `umami:${name}`;

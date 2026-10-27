@@ -54,6 +54,7 @@ beforeAll(async () => {
   process.env.MONGODB_DB = "delivery-test";
   process.env.REGION = "test";
   process.env.PUBLIC_URL = "https://example.test";
+  process.env.MAIL_REPLY_TO = "hello@example.test";
   alerts = await import("../src/notify/alerts.js");
   col = await (await import("../src/db.js")).db();
 });
@@ -83,7 +84,7 @@ describe("alert delivery", () => {
     await addRollout("excel-web-16.00.js", 0, [{ path: "Excel.Range.foo", kind: "removed", severity: "high" }]);
     await alerts.notifyPending(20, at(60));
     expect(sent.filter((m) => m.transport === "email")).toHaveLength(1);
-    expect(sent.find((m) => m.transport === "email").subject).toBe("[high] Office.js beta: build 16.0.3 rolling out");
+    expect(sent.find((m) => m.transport === "email").subject).toBe("[high] Office.js beta: build 16.0.3 rolling out — 1 API change");
 
     // More files of the same build, same change: nothing new to say.
     sent.length = 0;
@@ -95,10 +96,22 @@ describe("alert delivery", () => {
     await addRollout("word-web-16.00.js", 150, [{ path: "Word.Body.bar", kind: "added", severity: "low" }]);
     await alerts.notifyPending(20, at(200));
     const email = sent.find((m) => m.transport === "email");
-    expect(email.subject).toBe("[low] Office.js beta: build 16.0.3 rolling out — update, 1 new API change(s)");
+    expect(email.subject).toBe("[low] Office.js beta: build 16.0.3 rolling out — update, 1 new API change");
     expect(email.text).toContain("Word.Body.bar");
     expect(email.text).not.toContain("Excel.Range.foo");
     expect(sent.filter((m) => m.transport === "slack")).toHaveLength(1);
+  });
+
+  it("counts an API change once however many files carry it, as the site does", async () => {
+    const foo = { path: "Excel.Range.foo", kind: "removed", severity: "high" };
+    await addRollout("excel-web-16.00.js", 0, [foo, { path: "Excel.Range.bar", kind: "added", severity: "low" }]);
+    await addRollout("excel-win32-16.01.js", 0, [foo]);
+    await alerts.notifyPending(20, at(60));
+    const email = sent.find((m) => m.transport === "email");
+    expect(email.subject).toBe("[high] Office.js beta: build 16.0.3 rolling out — 2 API changes");
+    expect(email.text.split("\n")[0]).toContain("2 API changes in 2 files; 2 file(s)");
+    expect(email.html).toContain("2 API changes in 2 files");
+    expect(sent.find((m) => m.transport === "slack").text).toContain("2 API changes in 2 files");
   });
 
   it("keeps a failed message queued and sends it on a later crawl", async () => {
@@ -144,7 +157,7 @@ describe("OneCDN channels", () => {
     await addRollout("excel-web-16.00.js", 0, removed);
     await addRollout("excel-web-16.00.js", 0, removed, { channel: "onecdn-beta", toSha: "sha-onecdn" });
     await alerts.notifyPending(20, at(60));
-    expect(emails().map((m) => m.subject)).toEqual(["[high] Office.js beta: build 16.0.3 rolling out"]);
+    expect(emails().map((m) => m.subject)).toEqual(["[high] Office.js beta: build 16.0.3 rolling out — 1 API change"]);
     expect(sent.filter((m) => m.transport === "slack")).toHaveLength(1);
     expect(sent.find((m) => m.transport === "slack").text).toContain("Office.js beta:");
   });
@@ -152,7 +165,7 @@ describe("OneCDN channels", () => {
   it("emails a build legacy has not shown to the legacy channel's subscribers", async () => {
     await addRollout("excel-web-16.00.js", 0, removed, { channel: "onecdn-beta" });
     await alerts.notifyPending(20, at(60));
-    expect(emails().map((m) => m.subject)).toEqual(["[high] Office.js onecdn-beta: build 16.0.3 rolling out"]);
+    expect(emails().map((m) => m.subject)).toEqual(["[high] Office.js onecdn-beta: build 16.0.3 rolling out — 1 API change"]);
     expect(emails()[0].html).toContain("for the beta channel");
     // One page per track: links go to /rollouts/beta/…, which shows both endpoints.
     expect(emails()[0].text).toContain("https://example.test/rollouts/beta/16.0.3");
@@ -189,7 +202,7 @@ describe("OneCDN channels", () => {
     await addRollout("office.js", 0, [], { ...flags, channel: "onecdn-beta" });
     await alerts.notifyPending(20, at(60));
     expect(emails().map((m) => m.subject).sort()).toEqual([
-      "[high] Office.js beta: build 16.0.3 rolling out",
+      "[high] Office.js beta: build 16.0.3 rolling out — 1 API change",
       "[high] Office.js onecdn-beta: loader security defaults changed",
     ]);
   });
@@ -291,6 +304,23 @@ describe("subscription links", () => {
     expect(await trySend(day)).toBe(0);
     expect(await trySend([ago(25 * 60), ...day.slice(1)])).toBe(1);
     expect((await col.subscribers.findOne({ token: "tok" })).confirmationsSent).toHaveLength(10);
+  });
+
+  it("stores where a subscriber came from and welcomes them once, with Reply-To", async () => {
+    await subscribe({ email: "new@example.test", source: "Newsletter X!" });
+    const fresh = await col.subscribers.findOne({ email: "new@example.test" });
+    expect(fresh.source).toBe("newsletterx");
+    expect(sent[0]).toMatchObject({ subject: "Confirm your silentship alerts", replyTo: "hello@example.test" });
+    expect(sent[0].text).toContain("tell me what you build with Office.js");
+
+    sent.length = 0;
+    await app.inject({ method: "POST", url: `/confirm?token=${fresh.token}` });
+    await app.inject({ method: "POST", url: `/confirm?token=${fresh.token}` });
+    expect(sent.map((m) => m.subject)).toEqual(["You're subscribed to silentship alerts"]);
+    expect(sent[0].replyTo).toBe("hello@example.test");
+
+    await subscribe({ email: "plain@example.test" });
+    expect((await col.subscribers.findOne({ email: "plain@example.test" })).source).toBe("direct");
   });
 
   it("sends unknown tokens to the invalid-link notice", async () => {

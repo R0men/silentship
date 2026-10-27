@@ -18,6 +18,8 @@ const C = {
   low: "#8d8f98",
   accent: "#7c8cff",
 };
+/** Confirmation and welcome emails go out with Reply-To set (MAIL_REPLY_TO); this asks for the reply. */
+const REPLY_LINE = "Reply to this email and tell me what you build with Office.js. I read every reply.";
 /** Optional support link in every email's footer, in the footer's faint colour. */
 export const SUPPORT_URL = "https://ko-fi.com/silentship";
 const SANS = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -38,6 +40,7 @@ const KIND_LABEL = {
 const STATUS_LABEL = { rolling: "Rolling out", complete: "Complete", abandoned: "Pulled back" };
 
 const pct = (share) => `${Math.round((share ?? 0) * 100)}%`;
+const plural = (n, one) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
 function button(href, label) {
   return html`<table role="presentation" cellpadding="0" cellspacing="0" border="0">
@@ -148,15 +151,41 @@ export function confirmEmail({ link, channels }) {
       Or paste this link into your browser:<br />
       <a href="${link}" style="color:${C.muted};text-decoration:underline;word-break:break-all;">${link}</a>
     </p>
+    <p style="margin:28px 0 0;color:${C.muted};">${REPLY_LINE}</p>
   `;
   return {
     subject: "Confirm your silentship alerts",
-    text: `Confirm your subscription to silentship — Office.js CDN change alerts (${watching}):\n${link}\n\nIf you did not request this, ignore this email.`,
+    text: `Confirm your subscription to silentship — Office.js CDN change alerts (${watching}):\n${link}\n\n${REPLY_LINE}\n\nIf you did not request this, ignore this email.`,
     html: layout({
       preheader: "One click to start getting Office.js CDN change alerts.",
       body,
       footer:
         "You received this because someone entered this address at silentship.dev. If it was not you, ignore this email — nothing happens without the click.",
+    }),
+  };
+}
+
+/** Sent once, when an address confirms for the first time. */
+export function welcomeEmail({ channels, unsubscribe }) {
+  const watching = channels.includes("beta") ? "production and beta channels" : "production channel";
+  const body = html`
+    <h1 style="margin:0 0 12px;font:600 26px/1.25 ${SANS};color:${C.text};letter-spacing:-0.02em;">
+      You're subscribed
+    </h1>
+    <p style="margin:0 0 16px;color:${C.muted};">
+      silentship now watches the Office.js ${watching} for you. The next email arrives when Microsoft starts rolling
+      out a build that changes the API — with the share of CDN edges that serve it and what changed.
+    </p>
+    <p style="margin:0;color:${C.text};">${REPLY_LINE}</p>
+  `;
+  return {
+    subject: "You're subscribed to silentship alerts",
+    text: `silentship now watches the Office.js ${watching} for you. The next email arrives when Microsoft starts rolling out a build that changes the API.\n\n${REPLY_LINE}\n\nUnsubscribe: ${unsubscribe}`,
+    html: layout({
+      preheader: "Alerts are on. Tell me what you build with Office.js.",
+      body,
+      footer: html`You get this because you confirmed silentship alerts.
+        <a href="${unsubscribe}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a> in one click.`,
     }),
   };
 }
@@ -347,6 +376,7 @@ export function alertEmail({
   files,
   share,
   totalChanges,
+  changeFiles = 0,
   entries,
   more,
   url,
@@ -356,6 +386,10 @@ export function alertEmail({
   notice = null,
 }) {
   const channelName = CHANNEL_LABEL[channel] ?? channel;
+  // "12 API changes in 21 files", as on the site and in RSS: unique changes lead.
+  const changesLine = totalChanges
+    ? `${plural(totalChanges, "API change")}${changeFiles ? ` in ${plural(changeFiles, "file")}` : ""}`
+    : "no public API changes";
   const changesBlock = entries.length
     ? html`<h2 style="margin:36px 0 8px;font:600 13px/1 ${SANS};color:${C.muted};letter-spacing:0.02em;">
           ${update ? "New since the last alert — " : ""}${watched ? "Changes matching your watchlist" : "API changes"}
@@ -402,7 +436,7 @@ export function alertEmail({
 
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0;">
       <tr>
-        ${fact("Files", files)} ${fact("API changes", totalChanges)} ${fact("Status", STATUS_LABEL[status] ?? status)}
+        ${fact("API changes", totalChanges)} ${fact("Files", files)} ${fact("Status", STATUS_LABEL[status] ?? status)}
       </tr>
     </table>
 
@@ -415,7 +449,7 @@ export function alertEmail({
   return layout({
     preheader: notice
       ? `Office.js loader security defaults changed on ${channelName}.`
-      : `${title} on ${channelName}: ${files} file(s), ~${pct(share)} of edges, ${totalChanges} API change(s).`,
+      : `${title} on ${channelName}: ${changesLine}; ${files} file(s), ~${pct(share)} of edges.`,
     body,
     footer: html`You get this because you subscribed to silentship alerts for the ${subscribedLabel(channel)} channel.
       <a href="${unsubscribe}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a> in one click.`,

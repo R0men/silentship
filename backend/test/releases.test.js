@@ -101,6 +101,33 @@ describe("releases", () => {
     expect(byGroup.get("16.0.9")).toMatchObject({ diverged: true, flagsChanged: true, differentFiles: [] });
   });
 
+  it("date a release from the endpoint that served it first, on the page and in the list", async () => {
+    // Legacy first (16.0.7: legacy at 120, OneCDN at 121).
+    expect((await q.getRelease("prod", "16.0.7")).firstSeenAt).toEqual(at(120));
+    // OneCDN first: 14 h before legacy.
+    const { rollouts } = await (await import("../src/db.js")).db();
+    const onecdn = { channel: "onecdn-prod", group: "16.0.6" };
+    await rollouts.updateOne(onecdn, { $set: { firstSeenAt: at(60 - 14 * 60) } });
+    const page = await q.getRelease("prod", "16.0.6");
+    expect(page.firstSeenAt).toEqual(at(60 - 14 * 60));
+    expect((await q.listReleases({ track: "prod" })).find((r) => r.group === "16.0.6").firstSeenAt).toEqual(page.firstSeenAt);
+    await rollouts.updateOne(onecdn, { $set: { firstSeenAt: at(62) } });
+  });
+
+  it("keep an endpoint's baseline build after the next build completes there", async () => {
+    const { fileStates, runs } = await (await import("../src/db.js")).db();
+    // OneCDN's first run was a baseline on 16.0.5; later 16.0.6 completed on it, so no file is stable on 16.0.5.
+    await runs.insertOne({ channel: "onecdn-prod", region: "test", bootstrap: true, status: "ok", build: "16.0.5", startedAt: at(0) });
+    await fileStates.updateMany({ channel: "onecdn-prod" }, { $set: { stableSha: "x6", stableBuild: "16.0.6" } });
+    const [r5] = await q.listReleases({ track: "prod", before: at(1), limit: 1 });
+    expect(r5.group).toBe("16.0.5");
+    expect(r5.endpoints.onecdn).toEqual({ channel: "onecdn-prod", status: "stable" });
+    expect(r5).toMatchObject({ diverged: false, notYetOn: { legacy: [], onecdn: [] } });
+    await runs.deleteMany({});
+    await fileStates.updateMany({ channel: "onecdn-prod", path: "excel-web-16.00.js" }, { $set: { stableSha: "x5", stableBuild: "16.0.5" } });
+    await fileStates.updateMany({ channel: "onecdn-prod", path: "office.js" }, { $set: { stableSha: "Lo5", stableBuild: "16.0.5" } });
+  });
+
   it("filter on the release, not on one endpoint", async () => {
     expect((await q.listReleases({ track: "prod", severity: "medium" })).map((r) => r.group)).toEqual(["16.0.8"]);
     expect((await q.listReleases({ track: "prod", activeOnly: true })).map((r) => r.group)).toEqual([

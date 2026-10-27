@@ -4,7 +4,7 @@ import JsonLd from "@/components/JsonLd";
 import Subscribe from "@/components/Subscribe";
 import { breadcrumbs, officeJs, techArticle } from "@/lib/jsonLd";
 import { fmtDay, getNote, listNotes } from "@/lib/notes";
-import { pageMeta } from "@/lib/site";
+import { NOTES_RSS, pageMeta } from "@/lib/site";
 
 // Notes are files in the repository: every page is built ahead, an unknown slug is a 404.
 export const dynamicParams = false;
@@ -26,6 +26,7 @@ export async function generateMetadata({ params }) {
     image: ogImage(note),
     keywords: note.keywords,
     article: { publishedTime: note.date, modifiedTime: note.updated ?? note.date, tags: note.keywords },
+    rss: NOTES_RSS,
   });
 }
 

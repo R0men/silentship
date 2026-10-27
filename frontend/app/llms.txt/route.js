@@ -58,7 +58,7 @@ Limits: only the JavaScript layer served from the CDN is visible. Breakages insi
 - [Live changelog](${SITE_URL}/): current build per channel, rollouts in progress, recent rollouts
 - [RSS feed](${SITE_URL}/rss.xml): one item per rollout, newest first
 - [Office.js API changes](${SITE_URL}/reference): every class, enum and function whose public API changed, one page per type with its history
-- [Notes](${SITE_URL}/notes): write-ups on observed rollouts and how the monitor works
+- [Notes](${SITE_URL}/notes): write-ups on observed rollouts and how the monitor works ([RSS](${SITE_URL}/notes/rss.xml))
 - [Sitemap](${SITE_URL}/sitemap.xml): every rollout and API type page
 
 ## Notes

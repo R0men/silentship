@@ -112,6 +112,9 @@ reading as thin or doorway pages:
 
 - The nav and the footer link `/notes` on every page.
 - Every note ends with "More from silentship": up to three other notes, the live rollouts, `/reference`, RSS.
+- Notes have their own feed, `/notes/rss.xml` (one item per note, `pubDate` = its date); `/notes` and note
+  pages announce it next to the rollouts feed (`NOTES_RSS` → `pageMeta({ rss })`). `/rss.xml` stays rollouts only.
+- A rollout page links a note as "Write-up →" when the note's `builds` lists the build.
 - Rollout pages link the endpoints note (`ENDPOINTS_NOTE` in `lib/site.js`) under the endpoint comparison
   ("What differs between the endpoints") and in the `loader-flags-changed` notice. Renaming that note's file
   means updating `ENDPOINTS_NOTE`.

@@ -6,6 +6,7 @@ import { runChannel } from "./pipeline/run.js";
 import { notifyPending, pruneUnconfirmed, sendPreviewEmails } from "./notify/alerts.js";
 import { startServer } from "./web/server.js";
 import { reclassifyStored } from "./analysis/reclassify.js";
+import { pingHealthcheck } from "./notify/healthcheck.js";
 
 let running = false;
 
@@ -43,6 +44,7 @@ async function crawlOnce(archive) {
       return;
     }
     const startedAt = Date.now();
+    let failed = false;
     for (const channel of config.channels) {
       if (!(await acquireLock(CRAWL_LOCK, CRAWL_LOCK_TTL_MS))) {
         console.warn(`Crawl lock lost before ${channel}; stopping this crawl`);
@@ -51,9 +53,11 @@ async function crawlOnce(archive) {
       try {
         await runChannel(channel, archive);
       } catch (err) {
+        failed = true;
         console.error(`[${channel}] crawl failed:`, err);
       }
     }
+    await pingHealthcheck(failed);
     const tookMs = Date.now() - startedAt;
     const took = `Crawled ${config.channels.length} channel(s) in ${(tookMs / 1000).toFixed(1)} s`;
     if (tookMs > CRAWL_BUDGET_MS) console.warn(`${took}: longer than ${CRAWL_BUDGET_MS / 60_000} min, ticks will be skipped`);
@@ -68,6 +72,21 @@ async function crawlOnce(archive) {
     if (locked) await releaseLock(CRAWL_LOCK).catch((err) => console.error("releasing crawl lock failed:", err));
     running = false;
   }
+}
+
+/** Confirmed, still subscribed addresses per `source` (utm_source, referrer domain or direct). */
+async function subscriberSources() {
+  const { subscribers } = await db();
+  const rows = await subscribers
+    .aggregate([
+      { $match: { confirmedAt: { $ne: null }, unsubscribedAt: null } },
+      { $group: { _id: { $ifNull: ["$source", "(before sources)"] }, count: { $sum: 1 } } },
+      { $sort: { count: -1, _id: 1 } },
+    ])
+    .toArray();
+  const total = rows.reduce((n, r) => n + r.count, 0);
+  for (const r of rows) console.log(`${String(r.count).padStart(6)}  ${r._id}`);
+  console.log(`${String(total).padStart(6)}  confirmed subscribers`);
 }
 
 async function addWatch(email, pattern, hosts) {
@@ -93,13 +112,14 @@ const USAGE = `usage:
   cli dev                                    like start, on a throwaway in-memory MongoDB
   cli watch <email> <pattern> [host,host]    add a watchlist entry, e.g. Excel.Range.* excel
   cli reclassify                             classify stored API changes saved without an API status
-  cli mail-preview <email>                   send sample confirmation, alert and rollback emails (real data, dummy tokens)`;
+  cli mail-preview <email>                   send sample confirmation, alert and rollback emails (real data, dummy tokens)
+  cli subscribers                            confirmed subscribers per source (utm_source, referrer, direct)`;
 
 async function main(argv) {
   const [command, ...args] = argv;
   const archive = new GitArchive(config.archiveDir);
   // Fail at startup with one clear message rather than on every crawl tick.
-  if (["crawl", "serve", "start", "watch", "reclassify", "mail-preview"].includes(command) && !process.env.MONGODB_URI) {
+  if (["crawl", "serve", "start", "watch", "reclassify", "mail-preview", "subscribers"].includes(command) && !process.env.MONGODB_URI) {
     throw new Error(
       "MONGODB_URI is not set (see .env.example), or use `node src/cli.js dev` for an in-memory database.",
     );
@@ -136,6 +156,10 @@ async function main(argv) {
     }
     case "reclassify":
       await reclassify();
+      await closeDb();
+      return;
+    case "subscribers":
+      await subscriberSources();
       await closeDb();
       return;
     case "watch": {

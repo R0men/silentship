@@ -65,12 +65,13 @@ function Row({ g }) {
   );
 }
 
-export default function Rollouts({ initial, initialOverview }) {
+/** `initial` is the home snapshot { overview, rollouts, at }: a live one older than it never replaces it. */
+export default function Rollouts({ initial }) {
   const toast = useToast();
-  const { data } = useLive(null);
-  const stats = (data?.overview ?? initialOverview)?.stats;
-  const [groups, setGroups] = useState(initial);
-  const [done, setDone] = useState(initial.length < PAGE);
+  const { data } = useLive(initial);
+  const stats = data?.overview?.stats;
+  const [groups, setGroups] = useState(initial?.rollouts ?? []);
+  const [done, setDone] = useState((initial?.rollouts ?? []).length < PAGE);
   const [channel, setChannel] = useState("all");
   const [severity, setSeverity] = useState("all");
   const [loading, setLoading] = useState(false);

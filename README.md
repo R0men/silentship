@@ -108,7 +108,7 @@ Production setup, environment variables and deployment: [`docs/SETUP.md`](docs/S
 
 ```
 backend/src/
-  cli.js        crawl / serve / start / dev / watch / reclassify / mail-preview
+  cli.js        crawl / serve / start / dev / watch / reclassify / mail-preview / subscribers
   crawler/      loader → manifest, sampling, build stamps, HTTP metadata
   pipeline/     one crawl of a channel, rollout rules
   analysis/     sandbox, reflection, body hash, diff, severity, watchlist
@@ -116,7 +116,7 @@ backend/src/
   notify/       alerts, email templates, Brevo, Slack
   web/          Fastify: JSON API, RSS, SSE, /health
 frontend/app/   pages, sitemap.js, robots.js, llms.txt, Open Graph image
-deploy/         deploy.sh, systemd unit, nginx config
+deploy/         deploy.sh, backup.sh, systemd units, nginx config
 docs/           architecture, setup, verification, changelog, plan
 TECH.md         scope, decisions, roadmap
 ```

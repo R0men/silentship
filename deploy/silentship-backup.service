@@ -1,0 +1,17 @@
+# /etc/systemd/system/silentship-backup.service — one nightly backup run (deploy/backup.sh).
+# Started by silentship-backup.timer; by hand: sudo systemctl start silentship-backup
+# Log: sudo journalctl -u silentship-backup
+# Adjust User= and the paths if the checkout lives elsewhere (docs/SETUP.md).
+
+[Unit]
+Description=silentship nightly backup (MongoDB dump, archive push)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=silentship
+WorkingDirectory=/home/silentship/silentship
+ExecStart=/bin/bash /home/silentship/silentship/deploy/backup.sh
+Nice=10
+IOSchedulingClass=idle

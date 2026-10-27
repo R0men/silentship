@@ -27,17 +27,30 @@ completion time, a full bar). The list has one row per
 track and build; a row carries an endpoint badge (`divergence`: "N files differ", "loader flags changed") only
 when the endpoints diverge on the same build, and a neutral "not yet on onecdn" (`notYetOn`) while one endpoint
 still serves files on an older build. API counts everywhere are unique changes first, files second
-(`apiChangesText`: "5 API changes in 19 files"). There is no endpoint filter.
+(`apiChangesText`: "5 API changes in 19 files"). There is no endpoint filter. A card with a release in flight
+shows its share per endpoint ("legacy 1% · onecdn 3% of edges") and under it "previous: 16.0.20612
+complete" (`overview.previous`).
+
+**A release page explains itself** (`releaseSummary` in `lib/format.js`): one sentence on what rolls out
+where, since when and on what share, and a verdict by severity — no public API changes / only preview or
+undocumented APIs / no breaking changes to documented APIs / "Documented API changed: N changes", for High
+with up to three biggest groups ("Word.LineFormat: 8 members removed"). Then "Get email alerts →" (the home
+form, `/#subscribe`) and "Write-up →" for a note whose front matter lists the build in `builds`. Dates in the
+facts are relative with the absolute UTC time next to them (`When` in `components/ui.js`). Files one
+endpoint has not served yet read from the new version's side: "New version seen on legacy only (8): …",
+with a hint that shares are averages over all sampled responses.
 
 ## Notes
 
 Write-ups (e.g. a rollout we watched end to end) live in the repository as `frontend/content/notes/<slug>.md`:
 front matter with `title` (the h1), `description` (meta, ≤160 chars), `date` (`YYYY-MM-DD`) and optionally
-`seoTitle` (the `<title>`), `updated` (`YYYY-MM-DD`; both dates are validated), `keywords` (comma-separated) and `checked` (when the facts were last
+`seoTitle` (the `<title>`), `updated` (`YYYY-MM-DD`; both dates are validated), `keywords` (comma-separated), `builds`
+(comma-separated Office.js builds whose rollout pages link the note as "Write-up →") and `checked` (when the facts were last
 verified, shown next to the date) — SEO use in [`seo.md`](seo.md), then Markdown (GFM: tables, code blocks), rendered with `marked` at
 build time (`lib/notes.js`). A line `<!-- subscribe: lead text -->` puts the site's subscribe form there. The HTML is trusted because it is our own text. Images go
 to `frontend/public/notes/` and are linked as `/notes/<file>`; links to the site are relative. A new note
-needs a deploy; the hub, sitemap and `llms.txt` pick it up on their own. Styles: `.prose.post` and
+needs a deploy; the hub, sitemap, `llms.txt` and the notes feed `/notes/rss.xml` (`app/notes/rss.xml/route.js`,
+linked from `/notes` and announced as an RSS alternate on note pages) pick it up on their own. Styles: `.prose.post` and
 `.post-list` in `globals.css`.
 
 ## Talking to the backend
@@ -62,8 +75,11 @@ update in place; a rollout page calls `router.refresh()` (`LiveRefresh`).
 server-rendered HTML shows (bots and link previews must not read "Offline"); `live` once the stream answers;
 `offline` only after a real stream error (EventSource keeps reconnecting).
 
-**Headline with live numbers** (`components/Headline.js`): "Microsoft is rolling out Office.js 16.0.20606
-right now. 42% of the CDN already serves it." There are variants for a beta rollout and for quiet times. The
+**Headline with live numbers** (`components/Headline.js`): "Office.js 16.0.20619 is rolling out: 1% of sampled
+edges, high-severity API changes." (`severityPhrase`) — production first, else "… is rolling out on beta: …",
+and a quiet-time variant. Any release the RSS feed or an alert has (confirmed, rolling on either endpoint)
+leads here: the headline, cards, list and the "N with high-severity changes" counter all read one snapshot,
+and a live snapshot older than the server render never replaces it (also in the list's counter). The
 wording is deliberately about the CDN's share, not users': we measure edge responses, and a user gets the
 new version when Office next loads the add-in from such an edge.
 

@@ -5,7 +5,7 @@ import { matchingChanges } from "../analysis/watchlist.js";
 import { flagsChangeNotice } from "../crawler/loader.js";
 import { hostTypeOf } from "../crawler/manifest.js";
 import { CONFIRM_RUNS } from "../pipeline/rollouts.js";
-import { listGroups } from "../web/queries.js";
+import { apiChangesLine, countChanges, listGroups, plural } from "../web/queries.js";
 import { alertEmail, confirmEmail, rollbackEmail, SUPPORT_URL } from "./email-templates.js";
 import { postSlack, sendEmail } from "./senders.js";
 
@@ -243,8 +243,8 @@ async function groupContext(channel, group, rollouts) {
       ? "files removed"
       : "content change without a build stamp";
   const header =
-    `Office.js ${channel}: ${what} [${severity}] — ${files} file(s), on ~${pct(share)} of sampled edges, ` +
-    `${changes.length} API change(s)`;
+    `Office.js ${channel}: ${what} [${severity}] — ${apiChangesLine(countChanges(changes))}; ` +
+    `${files} file(s), on ~${pct(share)} of sampled edges`;
   const title = toBuild ?? (removed ? "Files removed" : "Unversioned change");
   // loader-flags-changed: office.js of this batch sets the security defaults differently.
   const flagged = rollouts.find((r) => r.flagsChanged);
@@ -270,14 +270,17 @@ async function groupContext(channel, group, rollouts) {
 function renderAlert(ctx, { changes, severity, unsubscribe, watched, update = false }) {
   const entries = apiEntries(changes);
   const limit = 25;
+  // The same count as the site and RSS: one per API path and kind, however many host files carry it.
+  const counts = countChanges(changes);
   const what = ctx.notice
     ? "loader security defaults changed"
     : ctx.toBuild
       ? `build ${ctx.toBuild} rolling out`
       : ctx.what;
-  const subject =
-    `[${severity}] Office.js ${ctx.channel}: ${what}` +
-    `${update && !ctx.notice ? ` — update, ${changes.length} new API change(s)` : ""}`;
+  const count = update
+    ? !ctx.notice && ` — update, ${plural(counts.uniqueApiChanges, "new API change")}`
+    : !ctx.notice && counts.uniqueApiChanges > 0 && ` — ${plural(counts.uniqueApiChanges, "API change")}`;
+  const subject = `[${severity}] Office.js ${ctx.channel}: ${what}${count || ""}`;
   return {
     subject,
     text: [
@@ -300,7 +303,8 @@ function renderAlert(ctx, { changes, severity, unsubscribe, watched, update = fa
       status: ctx.status,
       files: ctx.files,
       share: ctx.share,
-      totalChanges: changes.length,
+      totalChanges: counts.uniqueApiChanges,
+      changeFiles: counts.apiChangeFiles,
       entries: entries.slice(0, limit),
       more: Math.max(0, entries.length - limit),
       url: ctx.url,
@@ -409,9 +413,10 @@ function renderRollback(ctx, items, { changes, unsubscribe, watched }) {
   const limit = 25;
   const peakShare = Math.max(0, ...items.map((r) => r.peakShare ?? 0));
   const firstSeenAt = new Date(Math.min(...items.map((r) => new Date(r.firstSeenAt).getTime())));
+  const { uniqueApiChanges } = countChanges(changes);
   const line =
     `Office.js ${ctx.channel}: ${ctx.toBuild ? `build ${ctx.toBuild}` : ctx.title} pulled back — no sampled edge has ` +
-    `served it for 24 h (${items.length} file(s), peak ~${pct(peakShare)} of edges, ${changes.length} API change(s) reverted)`;
+    `served it for 24 h (${items.length} file(s), peak ~${pct(peakShare)} of edges, ${plural(uniqueApiChanges, "API change")} reverted)`;
   return {
     line,
     subject: `[pulled back] Office.js ${ctx.channel}: ${ctx.toBuild ? `build ${ctx.toBuild}` : ctx.title} rolled back`,
@@ -432,7 +437,7 @@ function renderRollback(ctx, items, { changes, unsubscribe, watched }) {
       files: items.length,
       peakShare,
       firstSeenAt,
-      totalChanges: changes.length,
+      totalChanges: uniqueApiChanges,
       entries: entries.slice(0, limit),
       more: Math.max(0, entries.length - limit),
       url: ctx.url,

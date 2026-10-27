@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { channelLabel, CHANNELS, ENDPOINTS, fmtDate, groupTitle, pct, STATUS_LABEL } from "@/lib/format";
+import { channelLabel, CHANNELS, ENDPOINTS, fmtDate, groupTitle, pct, shortBuild, STATUS_LABEL } from "@/lib/format";
 import { useLive } from "./Live";
 import { ShareBar, TimeAgo } from "./ui";
 
@@ -64,13 +64,38 @@ function Channel({ c }) {
             )}
           </span>
           <span className="muted">
-            {pct(g.share)} of edges · {g.files} file{g.files === 1 ? "" : "s"}
+            <EndpointShares g={g} /> · {g.files} file{g.files === 1 ? "" : "s"}
           </span>
           <ShareBar share={g.share} />
         </Link>
       ))}
       {c.active.length === 0 && c.latest && <LatestRelease track={c.channel} g={c.latest} />}
+      {c.active.length > 0 && c.previous && (
+        <Link className="channel-previous muted" href={`/rollouts/${c.channel}/${encodeURIComponent(c.previous.group)}`}>
+          previous: <span className="mono">{shortBuild(groupTitle(c.previous))}</span>{" "}
+          {STATUS_LABEL[c.previous.status].toLowerCase()}
+        </Link>
+      )}
     </div>
+  );
+}
+
+/** "legacy 1% · onecdn 3% of edges", or one share when only one endpoint rolls it out. */
+function EndpointShares({ g }) {
+  const sides = Object.keys(ENDPOINTS)
+    .map((name) => [name, g.endpoints?.[name]])
+    .filter(([, e]) => e && e.status !== "stable");
+  if (sides.length < 2) return <>{pct(g.share)} of edges</>;
+  return (
+    <>
+      {sides.map(([name, e], i) => (
+        <span key={name}>
+          {i > 0 && " · "}
+          {ENDPOINTS[name].label} {pct(e.share)}
+        </span>
+      ))}{" "}
+      of edges
+    </>
   );
 }
 

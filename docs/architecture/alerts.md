@@ -7,12 +7,19 @@ Code: `POST /api/subscribe`, `/confirm`, `/unsubscribe` — `backend/src/web/ser
 
 ## Subscription (double opt-in)
 
-- The form (`frontend/components/Subscribe.js`) sends `{ email, beta }`. `beta: true` → channels `prod,beta`,
+- The form (`frontend/components/Subscribe.js`) sends `{ email, beta, source }`. `beta: true` → channels `prod,beta`,
   otherwise `prod`. `minSeverity` defaults to `low`; there is no UI for it or for the watchlist yet.
+- `source` — where the subscriber came from, one word stored on the first submit only (`signupSource` in
+  `lib/analytics.js` and again in `server.js`): the page's `utm_source`, else the domain of an outside
+  referrer, else `direct`; lower case, `[a-z0-9._-]`, ≤ 64. No IP, no URL (`/privacy` says so).
+  `node src/cli.js subscribers` (in `backend/`) counts confirmed subscribers per source.
 - A confirmation email with a `/confirm?token=…` link. **A GET never changes a subscription:** corporate
   mail gateways (Defender Safe Links, Mimecast) open every link in a message to scan it, which would confirm
   any address someone typed into the form and unsubscribe people. `GET /confirm` shows a page with a button
   (`web/action-page.js`); its `POST /confirm` confirms and redirects (303) to `/?notice=confirmed`.
+- The first confirmation sends `welcomeEmail` once (`welcomedAt`, set atomically). The confirmation and welcome
+  emails carry `Reply-To: MAIL_REPLY_TO` and ask "Reply to this email and tell me what you build with
+  Office.js. I read every reply."
 - **Abuse protection:** 5 requests per hour per IP; per address at most one email a minute, 3 per 10
   minutes and 10 a day (claimed atomically in MongoDB, so parallel submits cannot slip past; a submit over the limit still
   answers `ok` but sends nothing); a global cap `MAX_CONFIRMATIONS_PER_HOUR` (200). The response is the same whether the address is known or
@@ -73,12 +80,15 @@ considered. A one-run incident is never confirmed, so it never produces a rollba
 A new version reaches the host files one by one over several runs (prod 16.0.20606: 14 files, then 26). An
 alert goes out once the channel has had no new rollouts for `ALERT_QUIET_MINUTES` (20 min): one message per
 target build — how many files, what share of edges, which API changes (one line per path with the list of
-files). Alerted rollouts get `notifiedAt`.
+files). Alerted rollouts get `notifiedAt`. Counts are the site's: unique changes by path and kind first, the
+files that carry them second (`countChanges` and `apiChangesLine` in `web/queries.js`) — the subject ends
+with "— 12 API changes", the first line of the text and Slack say "12 API changes in 21 files", and the
+email's "API changes" fact is the same 12.
 
 **One alert per build, then updates.** Files of a build that reach the CDN after its alert are a new batch
 of the same group. A subscriber who already got an email about the group (a `deliveries` row) gets an
 **update** only if the batch brought API changes (by path and kind, after their watchlist) that earlier
-batches did not — the email lists only those, the subject ends with "— update, N new API change(s)".
+batches did not — the email lists only those, the subject ends with "— update, N new API changes".
 Otherwise the batch is marked notified silently. Once a group has been alerted on, every later email about it
 carries only changes not sent before — also to someone who subscribed in between, and for groups alerted
 before the queue existed. Slack gets the same: one line per build, then updates
@@ -119,7 +129,7 @@ expire after 90 days (TTL).
 
 ## What the emails look like
 
-`email-templates.js`: `confirmEmail` (double opt-in), `alertEmail` (rollout) and `rollbackEmail` (pulled back) in the site's style — dark
+`email-templates.js`: `confirmEmail` (double opt-in), `welcomeEmail` (first confirmation), `alertEmail` (rollout) and `rollbackEmail` (pulled back) in the site's style — dark
 `#060607` background, white as the only bright accent (button, headline number, share bar), severity
 colours (`#ff5b6b` / `#f2b544` / grey), API paths in a monospace font. Email clients ignore `<style>`, web
 fonts and flexbox unevenly, so the layout is nested tables with inline styles, colours are repeated as

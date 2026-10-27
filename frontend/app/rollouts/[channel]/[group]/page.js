@@ -3,9 +3,21 @@ import { notFound } from "next/navigation";
 import RolloutView from "@/components/RolloutView";
 import JsonLd from "@/components/JsonLd";
 import { LiveRefresh } from "@/components/Live";
-import { ChannelTag, Severity, ShareBar, TimeAgo } from "@/components/ui";
+import { ChannelTag, Severity, ShareBar, When } from "@/components/ui";
 import { apiGet } from "@/lib/api";
-import { apiChangesText, channelLabel, CHANNELS, ENDPOINTS, fmtDate, groupTitle, pct, plural, STATUS_LABEL } from "@/lib/format";
+import {
+  apiChangesText,
+  channelLabel,
+  CHANNELS,
+  ENDPOINTS,
+  fmtDate,
+  groupTitle,
+  pct,
+  plural,
+  releaseSummary,
+  STATUS_LABEL,
+} from "@/lib/format";
+import { listNotes } from "@/lib/notes";
 import { breadcrumbs, officeJs, techArticle } from "@/lib/jsonLd";
 import { ENDPOINTS_NOTE, pageMeta } from "@/lib/site";
 
@@ -102,9 +114,15 @@ const FileList = ({ files }) =>
     </span>
   ));
 
+/** The other endpoint: a file in notYetOn.onecdn has the new version on legacy only, and the other way round. */
+const OTHER = { legacy: "onecdn", onecdn: "legacy" };
+
+const SHARES_HINT =
+  "Shares are averages over all sampled responses; a file listed here hasn't served the new version on the other endpoint in any sample yet.";
+
 /**
  * Whether the endpoints serve the same host files for this build. Only files both serve on it are compared;
- * a file one endpoint still serves on an older build is listed as not there yet, not as a difference.
+ * a file one endpoint still serves on an older build is listed under the endpoint that has the new version.
  */
 function EndpointFiles({ r }) {
   if (!r.onecdnCrawled) return null;
@@ -124,16 +142,47 @@ function EndpointFiles({ r }) {
         "Host files byte-identical on both endpoints."
       )}
       {late.map((e) => (
-        <span key={e}>
+        <span key={e} title={SHARES_HINT}>
           {" "}
-          Not yet on {ENDPOINTS[e].label}: <FileList files={r.notYetOn[e]} />.
+          New version seen on {ENDPOINTS[OTHER[e]].label} only ({r.notYetOn[e].length}): <FileList files={r.notYetOn[e]} />.
         </span>
       ))}
+      {late.length > 0 && <span className="faint"> {SHARES_HINT}</span>}
       {LOADER_NOTE[r.loader] && <span className="faint"> {LOADER_NOTE[r.loader]}</span>}{" "}
       <Link className="faint-link" href={ENDPOINTS_NOTE}>
         What differs between the endpoints
       </Link>
     </p>
+  );
+}
+
+/** What this page is, from its data: where the build rolls out, since when, and what it does to the API. */
+function Summary({ r }) {
+  const { lead, verdict, highlights } = releaseSummary(r);
+  const notes = listNotes().filter((n) => r.toBuild && n.builds?.includes(r.toBuild));
+  return (
+    <div className="release-summary">
+      <p>
+        {lead} {verdict}
+      </p>
+      {highlights.length > 0 && (
+        <ul>
+          {highlights.map((h) => (
+            <li key={h} className="mono">
+              {h}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="release-links">
+        <Link href="/#subscribe">Get email alerts →</Link>
+        {notes.map((n) => (
+          <Link key={n.slug} href={n.path}>
+            Write-up →
+          </Link>
+        ))}
+      </p>
+    </div>
   );
 }
 
@@ -162,6 +211,7 @@ export default async function RolloutPage({ params }) {
       </div>
       <h1 className="release-build">{groupTitle(r)}</h1>
       {r.fromBuilds.length > 0 && <p className="note">from {r.fromBuilds.join(", ")}</p>}
+      <Summary r={r} />
       {r.flags.map((f) => (
         <FlagsNotice key={f.endpoint} flags={f} />
       ))}
@@ -191,12 +241,14 @@ export default async function RolloutPage({ params }) {
         <div>
           <dt>First seen</dt>
           <dd>
-            <TimeAgo date={r.firstSeenAt} />
+            <When date={r.firstSeenAt} />
           </dd>
         </div>
         <div>
           <dt>{r.status === "complete" ? "Completed" : "Last seen"}</dt>
-          <dd>{r.status === "complete" && r.completedAt ? fmtDate(r.completedAt) : <TimeAgo date={r.lastSeenAt} />}</dd>
+          <dd>
+            <When date={r.status === "complete" && r.completedAt ? r.completedAt : r.lastSeenAt} />
+          </dd>
         </div>
         <div>
           <dt>Files</dt>
@@ -204,10 +256,10 @@ export default async function RolloutPage({ params }) {
             {r.files}
             {Object.keys(ENDPOINTS)
               .filter((e) => r.notYetOn?.[e]?.length)
-              .map((e) => (
-                <span key={e} className="faint">
+              .map((e, i) => (
+                <span key={e} className="faint" title={SHARES_HINT}>
                   {" "}
-                  ({r.notYetOn[e].length} not yet on {ENDPOINTS[e].label})
+                  · {r.notYetOn[e].length} {i === 0 ? "seen " : ""}on {ENDPOINTS[OTHER[e]].label} only
                 </span>
               ))}
           </dd>

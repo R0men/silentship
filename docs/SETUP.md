@@ -59,7 +59,12 @@ One `.env` at the repository root serves both workspaces; the template is `.env.
 | `MAX_CONFIRMATIONS_PER_HOUR` | `200` | global cap on confirmation emails |
 | `PUBLIC_URL` | `http://localhost:3000` | site address: links in emails and RSS, canonical URLs, sitemap |
 | `BREVO_API_KEY`, `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME` | — | email via Brevo |
+| `MAIL_REPLY_TO` | — | Reply-To of the confirmation and welcome emails (e.g. `hello@<domain>`) |
 | `SLACK_WEBHOOK_URL` | — | Slack alerts |
+| `HEALTHCHECK_URL` | — | dead-man's switch: `GET` after every crawl where all channels finished, `<url>/fail` after one with a failed channel (healthchecks.io format; 5 s timeout, a failed ping is only logged) |
+| `BACKUP_DIR` | `~/backups` | `deploy/backup.sh`: where dumps go |
+| `BACKUP_RCLONE_REMOTE` | — | `deploy/backup.sh`: rclone destination for an off-site copy (e.g. `b2:silentship-backups`) |
+| `ARCHIVE_REMOTE` | — | `deploy/backup.sh`: **private** git remote the archive is pushed to |
 | `API_URL` (frontend) | `http://127.0.0.1:$API_PORT` | where Next fetches data |
 
 ## Production (one VPS)
@@ -148,6 +153,10 @@ Logs: the repository's Actions tab; on the server `sudo journalctl -u silentship
 - **UptimeRobot** (free): an HTTP monitor on `https://<domain>/health` every 5 min, alerting on non-2xx.
   `/health` returns 503 when a channel has not finished a run for 20 min, the last run failed or a run is
   stuck — not only when the process is down.
+- **healthchecks.io** (free): a check with period 10 min and grace 20 min, notifications by email or
+  Telegram; its ping URL goes into `HEALTHCHECK_URL`. Pings come from inside the crawler, so this also
+  catches what `/health` cannot report by itself: the whole server or service being down, or the crawler
+  hanging. A crawl with a failed channel pings `<url>/fail` and alerts at once.
 - Optionally a second monitor on the site itself.
 - Umami — visits and events (`architecture/analytics.md`).
 - Google Search Console / Bing Webmaster Tools — indexing, sitemap (`architecture/seo.md`).
@@ -165,7 +174,40 @@ Brevo → Senders, Domains & Dedicated IPs → add your domain. Brevo shows the 
 
 ## Backups
 
-- MongoDB — the provider's backups (Atlas has them).
-- The `data/archive` archive is the history of every Office.js version seen; it cannot be downloaded again
-  later. Nightly, e.g.
-  `git -C ~/silentship/data/archive bundle create /backup/archive-$(date +%F).bundle --all`, copied off the server.
+`deploy/backup.sh`, run nightly at 03:17 UTC by `deploy/silentship-backup.timer`:
+
+1. `mongodump --archive --gzip` of the database into `$BACKUP_DIR/daily/silentship-<date>.archive.gz`
+   (the URI goes through a 0600 config file, never the command line); on Sundays a copy in `weekly/`;
+2. rotation: the 14 newest daily and 8 newest weekly dumps stay;
+3. with `BACKUP_RCLONE_REMOTE` — `rclone sync` of both folders off the server; without it a warning in the log;
+4. with `ARCHIVE_REMOTE` — `git push` of `data/archive` (HEAD → `main`) to that remote. The archive is
+   the history of every Office.js version seen and cannot be downloaded again later. It holds Microsoft's
+   code: the remote must be private.
+
+Settings come from the environment or the repository's `.env` (`MONGODB_URI`, `MONGODB_DB`, `ARCHIVE_DIR`
+and the variables above). Setup, once:
+
+```sh
+# MongoDB Database Tools (mongodump, mongorestore) and, for the off-site copy, rclone
+sudo apt install mongodb-database-tools rclone   # or the .deb from mongodb.com/try/download/database-tools
+rclone config                                     # as the silentship user: e.g. a Backblaze B2 or R2 remote
+sudo cp ~/silentship/deploy/silentship-backup.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now silentship-backup.timer
+sudo systemctl start silentship-backup && journalctl -u silentship-backup -n 20   # one run now
+```
+
+### Restore
+
+```sh
+# Into a scratch database first, to look at it (namespaces renamed on the way in):
+mongorestore --uri="$MONGODB_URI" --gzip --archive=silentship-2026-10-27.archive.gz   --nsFrom='silentship.*' --nsTo='silentship_restore.*'
+# Over the live database: stop the service first, then
+mongorestore --uri="$MONGODB_URI" --gzip --archive=silentship-2026-10-27.archive.gz --drop
+# The archive: clone the private remote back into ARCHIVE_DIR
+git clone "$ARCHIVE_REMOTE" ~/silentship/data/archive
+```
+
+Checked on 2026-10-27 locally against a throwaway MongoDB (not production): `backup.sh` produced the dump,
+rotated 21 daily files down to 14, and `mongorestore` into `silentship_restore` gave the same document
+count in every collection (250 / 2 / 1). `--nsFrom/--nsTo` needs the database name in the URI or
+`MONGODB_DB` to match the dumped one (`silentship` here).

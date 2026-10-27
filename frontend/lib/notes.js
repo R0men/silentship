@@ -5,7 +5,8 @@ import { marked } from "marked";
 // Notes are Markdown files in frontend/content/notes: `<slug>.md` with a front matter of
 // `title` (the h1), `description` (meta, ≤160 chars), `date` (YYYY-MM-DD) and optionally `seoTitle` (the
 // <title> when it should differ from the h1), `updated` (YYYY-MM-DD), `keywords` (comma-separated) and
-// `checked` (when the facts were last verified). Read at build time; a new note needs a deploy.
+// `checked` (when the facts were last verified) and `builds` (comma-separated Office.js builds the note is
+// about: their rollout pages link it as the write-up). Read at build time; a new note needs a deploy.
 const DIR = join(process.cwd(), "content", "notes");
 
 // `<!-- subscribe: lead text -->` on its own line places the subscribe form there.
@@ -41,6 +42,7 @@ function parse(slug) {
   return {
     ...meta,
     keywords: meta.keywords ? meta.keywords.split(",").map((k) => k.trim()) : undefined,
+    builds: meta.builds ? meta.builds.split(",").map((b) => b.trim()) : undefined,
     slug,
     path: `/notes/${slug}`,
     body: text.slice(m[0].length),

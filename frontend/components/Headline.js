@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { track } from "@/lib/analytics";
-import { apiChangesText } from "@/lib/format";
+import { apiChangesText, severityPhrase, shortBuild } from "@/lib/format";
 import { AnimatedNumber, useLive } from "./Live";
 
 /** The biggest rollout in flight on a channel (most files), if any. */
@@ -11,9 +11,6 @@ function mainRollout(channel) {
 }
 
 const percent = (v) => `${Math.round(v * 100)}%`;
-
-/** "16.0.20606.15070" -> "16.0.20606": enough to name a release in a headline; the full stamp is on the rollout page. */
-const shortBuild = (b) => b?.split(".").slice(0, 3).join(".") ?? b;
 
 /**
  * The hero states what is happening on the CDN right now, with live numbers.
@@ -29,62 +26,36 @@ export default function Headline({ initial }) {
   const betaRollout = mainRollout(beta);
   const href = (c, g) => `/rollouts/${c}/${encodeURIComponent(g.group)}`;
 
-  if (prodRollout) {
-    const g = prodRollout;
+  // Production first: a build on production matters to every add-in; beta is the early warning.
+  const [channel, g] = prodRollout ? ["prod", prodRollout] : betaRollout ? ["beta", betaRollout] : [null, null];
+  if (g) {
     return (
       <>
         <p className="eyebrow">
-          <span className="dot dot-ok" /> Rollout in progress · production
-        </p>
-        <h1>
-          Microsoft is rolling out Office.js{" "}
-          <span className="h-build" title={g.toBuild}>
-            {shortBuild(g.toBuild)}
-          </span>{" "}
-          right now.
-          <span className="muted-h">
-            {" "}
-            <AnimatedNumber value={g.share} format={percent} /> of the CDN already serves it.
-          </span>
-        </h1>
-        <p className="lede">
-          {g.files} host file{g.files === 1 ? " is" : "s are"} moving from{" "}
-          <span className="mono">{g.fromBuilds.join(", ") || "the previous build"}</span>. Your users get it the next
-          time Office loads your add-in from an edge that has it.{" "}
-          <Link
-            className="lede-link"
-            href={href("prod", g)}
-            onClick={() => track("open_rollout", { channel: "prod", severity: g.severity, from: "headline" })}
-          >
-            {apiChangesText(g)} so far →
-          </Link>
-        </p>
-      </>
-    );
-  }
-
-  if (betaRollout) {
-    const g = betaRollout;
-    return (
-      <>
-        <p className="eyebrow">
-          <span className="dot dot-ok" /> Rollout in progress · beta
+          <span className={`dot ${g.severity === "high" ? "dot-bad" : "dot-ok"}`} /> Rollout in progress ·{" "}
+          {channel === "prod" ? "production" : "beta"}
         </p>
         <h1>
           Office.js{" "}
           <span className="h-build" title={g.toBuild}>
             {shortBuild(g.toBuild)}
           </span>{" "}
-          is rolling out on beta.
-          <span className="muted-h"> Production may follow.</span>
+          is rolling out{channel === "beta" ? " on beta" : ""}:
+          <span className="muted-h">
+            {" "}
+            <AnimatedNumber value={g.share} format={percent} /> of sampled edges, {severityPhrase(g)}.
+          </span>
         </h1>
         <p className="lede">
-          Already on <AnimatedNumber value={g.share} format={percent} /> of beta CDN edges, across {g.files} host files.
-          Beta often runs ahead of production — this is your early warning.{" "}
+          {g.files} host file{g.files === 1 ? " is" : "s are"} moving from{" "}
+          <span className="mono">{g.fromBuilds.join(", ") || "the previous build"}</span>.{" "}
+          {channel === "prod"
+            ? "Your users get it the next time Office loads your add-in from an edge that has it."
+            : "Beta often runs ahead of production — this is your early warning."}{" "}
           <Link
             className="lede-link"
-            href={href("beta", g)}
-            onClick={() => track("open_rollout", { channel: "beta", severity: g.severity, from: "headline" })}
+            href={href(channel, g)}
+            onClick={() => track("open_rollout", { channel, severity: g.severity, from: "headline" })}
           >
             {g.uniqueApiChanges ? `${apiChangesText(g)} →` : "See the rollout →"}
           </Link>

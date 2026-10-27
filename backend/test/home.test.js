@@ -10,6 +10,7 @@ let mongo;
 let q;
 let server;
 let live;
+let format;
 
 const base = Date.now() - 6 * 3600_000;
 const at = (min) => new Date(base + min * 60_000);
@@ -41,15 +42,22 @@ beforeAll(async () => {
   q = await import("../src/web/queries.js");
   server = await import("../src/web/server.js");
   live = await import("../src/web/live.js");
+  format = await import("../../frontend/lib/format.js");
   const { rollouts, fileStates, apiChanges } = await (await import("../src/db.js")).db();
 
   // 16.0.2 is rolling on legacy (four files); OneCDN has two of them so far: excel-web with the same bytes,
   // powerpoint-web with other bytes. word-web and onenote-web are still 16.0.1 there.
+  // 16.0.1 is the previous build, complete (a removed API in excel-web makes 16.0.2 High).
   const { insertedIds } = await rollouts.insertMany([
-    ...FILES.map((path) => roll({ channel: "prod", group: "16.0.2", path, toSha: `${path}@2` })),
+    ...FILES.map((path, i) => roll({ channel: "prod", group: "16.0.2", path, toSha: `${path}@2`, severity: i ? "low" : "high" })),
     roll({ channel: "onecdn-prod", group: "16.0.2", path: "excel-web-16.00.js", toSha: "excel-web-16.00.js@2", firstMin: 30 }),
     roll({ channel: "onecdn-prod", group: "16.0.2", path: "powerpoint-web-16.00.js", toSha: "other", firstMin: 30 }),
   ]);
+  await rollouts.insertMany(
+    FILES.map((path) =>
+      roll({ channel: "prod", group: "16.0.1", path, toSha: `${path}@1`, fromBuild: "16.0.0", status: "complete", share: 1, firstMin: -600, completedAt: at(-300) }),
+    ),
+  );
   await fileStates.insertMany(
     ["prod", "onecdn-prod"].flatMap((channel) =>
       FILES.map((path) => ({ channel, region: "test", path, stableSha: `${path}@1`, stableBuild: "16.0.1" })),
@@ -78,12 +86,25 @@ describe("home page", () => {
     const prod = home.overview.channels.find((c) => c.channel === "prod");
     expect(prod.active.map((r) => r.group)).toEqual(["16.0.2"]);
     expect(prod.latest.group).toBe("16.0.2");
-    expect(home.rollouts.map((r) => `${r.channel}/${r.group}`)).toEqual(["prod/16.0.2"]);
+    expect(home.rollouts.map((r) => `${r.channel}/${r.group}`)).toEqual(["prod/16.0.2", "prod/16.0.1"]);
 
     // The list on the page and the feed are the same rows.
     const feed = await q.listReleases({ limit: 50 });
     expect(feed.map((r) => `${r.channel}/${r.group}`)).toEqual(home.rollouts.map((r) => `${r.channel}/${r.group}`));
     expect(server.rssFeed(feed, "https://example.test")).toContain("Office.js prod: build 16.0.2");
+  });
+
+  it("leads with the rolling release, not the complete one before it, and counts it as High", async () => {
+    const home = await q.homeSnapshot();
+    const prod = home.overview.channels.find((c) => c.channel === "prod");
+    // Headline and card: the rolling build, with the complete one as "previous".
+    expect(prod.active).toHaveLength(1);
+    expect(prod.active[0]).toMatchObject({ group: "16.0.2", status: "rolling", severity: "high" });
+    expect(prod.previous).toMatchObject({ group: "16.0.1", status: "complete" });
+    expect(format.severityPhrase(prod.active[0])).toBe("high-severity API changes");
+    // List and counter.
+    expect(home.rollouts[0]).toMatchObject({ group: "16.0.2", status: "rolling" });
+    expect(home.overview.stats).toEqual({ rollouts30d: 2, high30d: 1 });
   });
 
   it("serves /api/home from the same snapshot", async () => {

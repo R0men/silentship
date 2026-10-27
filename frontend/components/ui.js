@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { timeAgo } from "@/lib/format";
+import { fmtDate, timeAgo } from "@/lib/format";
 
 export function Severity({ value }) {
   return <span className={`sev sev-${value}`}>{value}</span>;
@@ -24,6 +24,16 @@ export function TimeAgo({ date, prefix = "" }) {
       {prefix}
       {text}
     </span>
+  );
+}
+
+/** "17 h ago · 26 Oct 2026, 18:50 UTC": the relative time never stands without the date it counts from. */
+export function When({ date }) {
+  if (!date) return "—";
+  return (
+    <>
+      <TimeAgo date={date} /> <span className="faint when-abs">· {fmtDate(date)}</span>
+    </>
   );
 }
 

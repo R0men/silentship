@@ -1,0 +1,14 @@
+# /etc/systemd/system/silentship-backup.timer — nightly at 03:17 UTC (off the hour, away from other jobs).
+#   sudo systemctl daemon-reload && sudo systemctl enable --now silentship-backup.timer
+#   systemctl list-timers silentship-backup.timer
+
+[Unit]
+Description=Nightly silentship backup
+
+[Timer]
+OnCalendar=*-*-* 03:17:00 UTC
+# A night the server was off is caught up at boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

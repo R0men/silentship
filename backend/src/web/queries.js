@@ -115,6 +115,25 @@ const GROUP_STAGE = {
   },
 };
 
+export const plural = (n, one) => `${n} ${one}${n === 1 ? "" : "s"}`;
+
+/**
+ * "5 API changes in 19 files": unique changes first, the files that carry them second. The one wording of
+ * the count for RSS, emails and Slack (the site has the same in frontend/lib/format.js).
+ */
+export function apiChangesLine(g) {
+  if (!g.uniqueApiChanges) return "no public API changes";
+  return `${plural(g.uniqueApiChanges, "API change")} in ${plural(g.apiChangeFiles, "file")}`;
+}
+
+/** uniqueApiChanges and apiChangeFiles of raw apiChanges rows, counted as countApiChanges does. */
+export function countChanges(rows) {
+  return {
+    uniqueApiChanges: new Set(rows.map((c) => `${c.path}\u0000${c.kind}`)).size,
+    apiChangeFiles: new Set(rows.map((c) => c.file)).size,
+  };
+}
+
 /**
  * API changes of each group as the rollout page lists them (groupApiChanges): one per path and kind, however
  * many host files carry it; apiChangeFiles is how many files carry at least one.
@@ -336,6 +355,7 @@ const endpointView = (g) => ({
   uniqueApiChanges: g.uniqueApiChanges,
   apiChangeFiles: g.apiChangeFiles,
   firstSeenAt: g.firstSeenAt,
+  lastSeenAt: g.lastSeenAt,
   completedAt: g.completedAt,
 });
 
@@ -345,13 +365,19 @@ async function groupsByKey(channel, keys) {
   return new Map(rows.map((g) => [g.group, g]));
 }
 
-/** Builds some file of `channel` is stable on: an endpoint that started on a build never had it as a rollout. */
-async function stableBuilds(channel, keys) {
+/**
+ * Builds `channel` started on: its baseline (the build of its first, bootstrap run) or one some file is still
+ * stable on. Such a build never was a rollout there. fileStates alone forget the baseline once the next
+ * build completes on the endpoint, so the bootstrap run is the record that lasts.
+ */
+async function baselineBuilds(channel, keys) {
   if (!channel || !keys.length) return new Set();
-  const { fileStates } = await db();
-  return new Set(
-    await fileStates.distinct("stableBuild", { channel, region: config.region, stableBuild: { $in: keys } }),
-  );
+  const { fileStates, runs } = await db();
+  const [stable, bootstrap] = await Promise.all([
+    fileStates.distinct("stableBuild", { channel, region: config.region, stableBuild: { $in: keys } }),
+    runs.distinct("build", { channel, region: config.region, bootstrap: true, status: "ok", build: { $in: keys } }),
+  ]);
+  return new Set([...stable, ...bootstrap]);
 }
 
 /**
@@ -391,6 +417,11 @@ async function compareEndpoints(ep, releases) {
     r.flagsChanged = own.some((d) => d.flagsChanged);
     r.diverged = r.flagsChanged;
     if (!ep.onecdn) continue;
+    // An endpoint that started on this build served all of it; its bytes may be gone from fileStates since.
+    const baseline = {
+      legacy: r.endpoints.legacy?.status === "stable",
+      onecdn: r.endpoints.onecdn?.status === "stable",
+    };
     // Sorted oldest first, so a newer rollout of the same file wins.
     const version = new Map(own.map((d) => [`${d.channel}/${d.path}`, d.toSha]));
     // The endpoint's bytes of this build (null for a removal); undefined while it does not serve the build.
@@ -404,9 +435,11 @@ async function compareEndpoints(ep, releases) {
     for (const p of paths) {
       const legacy = versionOf(ep.legacy, p);
       const onecdn = versionOf(ep.onecdn, p);
-      if (legacy === undefined) r.notYetOn.legacy.push(p);
-      else if (onecdn === undefined) r.notYetOn.onecdn.push(p);
-      else if (legacy !== onecdn) r.differentFiles.push(p);
+      if (legacy === undefined) {
+        if (!baseline.legacy) r.notYetOn.legacy.push(p);
+      } else if (onecdn === undefined) {
+        if (!baseline.onecdn) r.notYetOn.onecdn.push(p);
+      } else if (legacy !== onecdn) r.differentFiles.push(p);
     }
     r.diverged = r.differentFiles.length > 0 || r.flagsChanged;
   }
@@ -418,8 +451,8 @@ async function releasesOf(track, keys, { severity, before, activeOnly = false } 
   const [legacy, onecdn, legacyStable, onecdnStable] = await Promise.all([
     groupsByKey(ep.legacy, keys),
     groupsByKey(ep.onecdn, keys),
-    stableBuilds(ep.legacy, keys),
-    stableBuilds(ep.onecdn, keys),
+    baselineBuilds(ep.legacy, keys),
+    baselineBuilds(ep.onecdn, keys),
   ]);
   // A side is the endpoint's group, `stable` when the endpoint started on this build, or null (not seen).
   const side = (groups, stable, channel, key) =>
@@ -432,10 +465,14 @@ async function releasesOf(track, keys, { severity, before, activeOnly = false } 
       legacy: side(legacy, legacyStable, ep.legacy, key),
       onecdn: ep.onecdn ? side(onecdn, onecdnStable, ep.onecdn, key) : null,
     };
+    // The release was first seen when either endpoint first served it, and last seen when either last did.
+    const groups = [legacy.get(key), onecdn.get(key)].filter(Boolean);
+    const firstSeenAt = earliest(groups.map((g) => g.firstSeenAt));
+    const lastSeenAt = latest(groups.map((g) => g.lastSeenAt));
     if (severity && primary.severity !== severity) continue;
-    if (before && !(primary.firstSeenAt < before)) continue;
+    if (before && !(firstSeenAt < before)) continue;
     if (activeOnly && ![endpoints.legacy, endpoints.onecdn].some((e) => e?.status === "rolling")) continue;
-    out.push({ ...primary, channel: track, endpoints, onecdnCrawled: Boolean(ep.onecdn) });
+    out.push({ ...primary, firstSeenAt, lastSeenAt, channel: track, endpoints, onecdnCrawled: Boolean(ep.onecdn) });
   }
   await compareEndpoints(ep, out);
   return out;
@@ -532,6 +569,7 @@ export const TYPE_RE = /^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*){0,9}$/;
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const latest = (dates) => dates.filter(Boolean).sort((a, b) => b - a)[0] ?? null;
+const earliest = (dates) => dates.filter(Boolean).sort((a, b) => a - b)[0] ?? null;
 const keyOf = (channel, group) => `${channel}/${group}`;
 const splitKey = (k) => ({ channel: k.slice(0, k.indexOf("/")), group: k.slice(k.indexOf("/") + 1) });
 
@@ -758,12 +796,14 @@ export async function overview() {
   for (const track of TRACKS) {
     const ep = endpointsOf(track);
     if (!config.channels.includes(track) && !ep.onecdn) continue;
-    const [legacy, onecdn, active, [lastChange]] = await Promise.all([
+    const [legacy, onecdn, active, recent] = await Promise.all([
       config.channels.includes(track) ? endpointState(track) : null,
       ep.onecdn ? endpointState(ep.onecdn) : null,
       listReleases({ track, activeOnly: true, limit: 10 }),
-      listReleases({ track, limit: 1 }),
+      listReleases({ track, limit: 5 }),
     ]);
+    const lastChange = recent[0];
+    const activeKeys = new Set(active.map((r) => r.group));
     const main = legacy ?? onecdn;
     const states = [legacy, onecdn].filter(Boolean);
     channels.push({
@@ -779,6 +819,8 @@ export async function overview() {
       lastChangeAt: lastChange?.firstSeenAt ?? null,
       // The newest release, so a quiet card still shows where the last one ended (complete, pulled back).
       latest: lastChange ?? null,
+      // The newest release not in flight, shown under a rolling one: "previous: 16.0.20612 complete".
+      previous: recent.find((r) => !activeKeys.has(r.group)) ?? null,
       endpoints: { legacy, onecdn },
       active,
     });

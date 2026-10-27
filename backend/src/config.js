@@ -81,6 +81,10 @@ export const config = {
   brevoApiKey: process.env.BREVO_API_KEY || undefined,
   mailFromEmail: env("MAIL_FROM_EMAIL", "alerts@example.com"),
   mailFromName: env("MAIL_FROM_NAME", "silentship"),
+  /** Reply-To of the confirmation and welcome emails, where people answer "what do you build?". */
+  mailReplyTo: process.env.MAIL_REPLY_TO || undefined,
+  /** healthchecks.io-style ping URL: GET after every successful crawl, `<url>/fail` after a failed one. */
+  healthcheckUrl: (process.env.HEALTHCHECK_URL || "").replace(/\/$/, "") || undefined,
   /** Locales whose office_strings.js we track. en-us is the default the loader falls back to. */
   locales: env("LOCALES", "en-us")
     .split(",")

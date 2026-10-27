@@ -8,7 +8,7 @@ Code: `backend/src/web/server.js` (Fastify, routes), `queries.js` (read models),
 | Route | What | Proxied by Next |
 |---|---|---|
 | `GET /health` | 200/503 for uptime monitors: every channel finished a run within `HEALTH_STALE_MINUTES` (20), the last run did not fail, none has been running for more than twice that (40 min) | `/health` |
-| `GET /api/overview` | Per track (`prod`, `beta`): stable build, last run, `endpoints` (legacy and OneCDN: build, last run), active releases, `latest` (the newest release, shown when nothing rolls); 30-day stats (distinct builds, and builds or other changes with High severity — not groups) | `/api/*` |
+| `GET /api/overview` | Per track (`prod`, `beta`): stable build, last run, `endpoints` (legacy and OneCDN: build, last run), active releases, `latest` (the newest release, shown when nothing rolls), `previous` (the newest release not in flight, shown under a rolling one); 30-day stats (distinct builds, and builds or other changes with High severity — not groups) | `/api/*` |
 | `GET /api/home` | The home page in one call (`homeSnapshot`): `{ overview, rollouts, at }` — `/api/overview` plus the 30 newest releases; the same object `/api/live` pushes | `/api/*` |
 | `GET /api/rollouts?channel&severity&before&limit` | Releases (`listReleases`), newest first; `channel` is the track; `before` is a `firstSeenAt` cursor; `limit` 1–100 (30) | `/api/*` |
 | `GET /api/rollouts/:track/:group` | One release (`getRelease`): both `endpoints`, hosts, share history and API changes of the primary group (the same `Office.*` change from several files is one row with the file list), `differentFiles`, `notYetOn`, `flags` (the `loader-flags-changed` notice per endpoint, empty unless the flags changed), `loader`: `identical`, `flags-only` (same `bodyHashSansFlags`), `different`. 404 for a OneCDN channel | `/api/*` |
@@ -43,9 +43,12 @@ The crawler and alerts work on groups of four channels (`prod`, `beta`, `onecdn-
 site works on **releases** (`listReleases`, `getRelease`, `sitemapReleases` in `queries.js`): one per track
 (`prod`, `beta` — the legacy channel names) and group key, with `endpoints: { legacy, onecdn }`. Each side is
 the endpoint's group summary, `{status: "stable"}` when the endpoint started on that build (its first run was
-a baseline, so the build never was a rollout there — `fileStates.stableBuild`), or `null` (not seen).
-- Numbers (files, share, API changes, severity, dates) are the legacy group's; the OneCDN one's when legacy
-  has not shown the build. Filters (`severity`, `before`) apply to that primary group, so paging sees a
+a baseline, so the build never was a rollout there — the `build` of its `bootstrap` run, or a file still
+stable on it in `fileStates`; fileStates alone forget the baseline once the next build completes there), or
+`null` (not seen). A baseline side is never "not yet on" that endpoint.
+- Numbers (files, share, API changes, severity, completion) are the legacy group's; the OneCDN one's when
+  legacy has not shown the build. `firstSeenAt` is the earliest of both groups and `lastSeenAt` the latest, so
+  the page, its meta, the list and the paging cursor date a release from whichever endpoint served it first. Filters (`severity`, `before`) apply to that primary group, so paging sees a
   release once; `activeOnly` keeps a release rolling on either endpoint.
 - Files are compared only where **both endpoints serve this build** — the group's rollout there, or a stable
   version stamped with it. A file one endpoint still serves on an older build is not a difference but

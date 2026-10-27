@@ -28,8 +28,6 @@ const JSON_LD = website("Office.js CDN change monitor: builds, rollouts and API-
 export default async function Home() {
   // One snapshot for the headline, the cards and the list: the same one /api/live pushes afterwards.
   const initial = await apiGetOr("/api/home", null);
-  const overview = initial?.overview ?? null;
-  const rollouts = initial?.rollouts ?? [];
 
   return (
     <>
@@ -47,7 +45,7 @@ export default async function Home() {
 
       <ChannelStatus initial={initial} />
 
-      <Rollouts initial={rollouts} initialOverview={overview} />
+      <Rollouts initial={initial} />
     </>
   );
 }

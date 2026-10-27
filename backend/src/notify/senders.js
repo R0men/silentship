@@ -26,6 +26,7 @@ export async function sendEmail(email) {
     body: JSON.stringify({
       sender: { name: config.mailFromName, email: config.mailFromEmail },
       to: [{ email: email.to }],
+      ...(email.replyTo ? { replyTo: { email: email.replyTo } } : {}),
       subject: email.subject,
       htmlContent: email.html,
       textContent: email.text,

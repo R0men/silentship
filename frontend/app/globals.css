@@ -395,6 +395,12 @@ h1 {
   grid-column: 1 / -1;
   margin-top: 6px;
 }
+.channel-previous {
+  display: block;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.channel-previous:hover .mono,
 .channel-rollout:hover .mono {
   text-decoration: underline;
   text-underline-offset: 4px;
@@ -690,6 +696,34 @@ h2 {
   max-width: 640px;
   margin: 18px 0 0;
   color: var(--muted);
+}
+/* What the release page is about, generated from its data. */
+.release-summary {
+  max-width: 680px;
+  margin: 24px 0 0;
+  color: var(--muted);
+}
+.release-summary p {
+  margin: 0;
+}
+.release-summary ul {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 13.5px;
+}
+.release-summary .release-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 12px;
+  font-size: 14px;
+}
+.release-links a {
+  color: var(--text);
+}
+.when-abs {
+  font-size: 0.85em;
 }
 /* A release on both endpoints: one progress block each, side by side. */
 .endpoints {

@@ -3,11 +3,13 @@ import Fastify from "fastify";
 import { config } from "../config.js";
 import { db } from "../db.js";
 import { SEVERITY_RANK } from "../analysis/diff.js";
-import { alreadySubscribedEmail, confirmEmail } from "../notify/email-templates.js";
+import { alreadySubscribedEmail, confirmEmail, welcomeEmail } from "../notify/email-templates.js";
 import { sendEmail } from "../notify/senders.js";
 import { esc } from "../util/html.js";
 import {
+  apiChangesLine,
   crawlerHealth,
+  plural,
   getApiType,
   getRelease,
   homeSnapshot,
@@ -25,13 +27,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GROUP_RE = /^[\w.-]{1,80}$/;
 
 const pct = (share) => `${Math.round(share * 100)}%`;
-const plural = (n, one) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
-/** "5 API changes in 19 files": unique changes first, the files that carry them second. */
-export function apiChangesLine(g) {
-  if (!g.uniqueApiChanges) return "no public API changes";
-  return `${plural(g.uniqueApiChanges, "API change")} in ${plural(g.apiChangeFiles, "file")}`;
-}
+export { apiChangesLine };
 
 export function rssFeed(groups, publicUrl) {
   const items = groups
@@ -54,6 +51,15 @@ export function rssFeed(groups, publicUrl) {
     `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>silentship — Office.js CDN rollouts</title>` +
     `<link>${esc(publicUrl)}</link><description>New Office.js builds spreading across appsforoffice.microsoft.com and officeapis.public.onecdn.static.microsoft</description>${items}</channel></rss>`
   );
+}
+
+/** A subscriber's source as stored: lower case letters, digits, dots and dashes, at most 64; else "direct". */
+export function signupSource(raw) {
+  const s = String(raw ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "")
+    .slice(0, 64);
+  return s || "direct";
 }
 
 /** Tiny per-IP limiter for the subscribe form: it sends email, so it is worth abusing. */
@@ -144,6 +150,8 @@ export async function buildServer() {
       sub = {
         email,
         token: randomBytes(24).toString("base64url"),
+        // First touch only: utm_source, a referrer's domain or "direct" — one word, no IP, no URL.
+        source: signupSource(req.body?.source),
         createdAt: new Date(),
         confirmedAt: null,
         unsubscribedAt: null,
@@ -191,7 +199,7 @@ export async function buildServer() {
       const link = `${config.publicUrl}/confirm?token=${sub.token}`;
       const message =
         !sub.confirmedAt || sub.pendingChannels
-          ? confirmEmail({ link, channels: sub.pendingChannels ?? sub.channels ?? channels })
+          ? { ...confirmEmail({ link, channels: sub.pendingChannels ?? sub.channels ?? channels }), replyTo: config.mailReplyTo }
           : alreadySubscribedEmail({
               channels: sub.channels,
               unsubscribe: `${config.publicUrl}/unsubscribe?token=${sub.token}`,
@@ -229,13 +237,27 @@ export async function buildServer() {
     const sub = await subscriberByToken(req);
     if (!sub) return notice(reply, "invalid-link");
     const { subscribers } = await db();
+    const channels = sub.pendingChannels ?? sub.channels;
     await subscribers.updateOne(
       { _id: sub._id },
       {
-        $set: { confirmedAt: sub.confirmedAt ?? new Date(), unsubscribedAt: null, channels: sub.pendingChannels ?? sub.channels },
+        $set: { confirmedAt: sub.confirmedAt ?? new Date(), unsubscribedAt: null, channels },
         $unset: { pendingChannels: "" },
       },
     );
+    // A welcome once, on the first confirmation; an atomic flag so a double click does not send two.
+    const { modifiedCount } = sub.confirmedAt
+      ? { modifiedCount: 0 }
+      : await subscribers.updateOne({ _id: sub._id, welcomedAt: null }, { $set: { welcomedAt: new Date() } });
+    if (modifiedCount) {
+      const unsubscribe = `${config.publicUrl}/unsubscribe?token=${sub.token}`;
+      await sendEmail({
+        to: sub.email,
+        ...welcomeEmail({ channels: channels ?? ["prod"], unsubscribe }),
+        replyTo: config.mailReplyTo,
+        headers: { "List-Unsubscribe": `<${unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+      }).catch((err) => req.log.error(`welcome email to subscriber failed: ${String(err)}`));
+    }
     return notice(reply, "confirmed");
   });
 

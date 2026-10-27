@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { track, trackOnce } from "@/lib/analytics";
+import { signupSource, track, trackOnce } from "@/lib/analytics";
 import { useToast } from "./Toast";
 
 const ERRORS = {
@@ -22,7 +22,7 @@ export default function Subscribe() {
       const res = await fetch("/api/subscribe", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: form.email.value, beta: form.beta.checked }),
+        body: JSON.stringify({ email: form.email.value, beta: form.beta.checked, source: signupSource() }),
       });
       if (!res.ok) throw Object.assign(new Error(), { status: res.status });
       // Counted after the API accepted it, so failed attempts do not inflate the conversion.
@@ -37,7 +37,8 @@ export default function Subscribe() {
   }
 
   return (
-    <form className="subscribe" onSubmit={onSubmit}>
+    // #subscribe: rollout pages link here ("Get email alerts →").
+    <form className="subscribe" id="subscribe" onSubmit={onSubmit}>
       <div className="field">
         <input
           type="email"
