@@ -24,10 +24,10 @@
     "reclassify": "node src/cli.js reclassify"
   },
   "dependencies": {
-    "@babel/parser": "^7.29.9",
+    "@babel/parser": "^8.0.8",
     "@types/office-js": "^1.0.612",
     "@types/office-js-preview": "^1.0.732",
-    "dotenv": "^18.0.8",
+    "dotenv": "^18.0.9",
     "fastify": "^5.12.7",
     "mongodb": "^7.7.0",
     "node-cron": "^4.6.0",
@@ -35,6 +35,6 @@
   },
   "devDependencies": {
     "mongodb-memory-server": "^11.3.0",
-    "vitest": "^5.0.4"
+    "vitest": "^5.0.5"
   }
 }
