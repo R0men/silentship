@@ -19,6 +19,9 @@
 
 ## History
 
+- **2026-10-30** — [2026-10-30.md](2026-10-30.md)
+  - `[Docs]` Note: Word.LineFormat lost 8 documented properties in Office.js 16.0.20619
+
 - **2026-10-27** — [2026-10-27.md](2026-10-27.md)
   - `[Bug Fix]` Home headline names the release in flight and its severity; cards show both endpoints and the previous build
   - `[Bug Fix]` A release is dated from the endpoint that served it first; dates show UTC next to "ago"
