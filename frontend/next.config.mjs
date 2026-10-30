@@ -18,6 +18,10 @@ const nextConfig = {
   async redirects() {
     return [{ source: "/rollouts/onecdn-:track(prod|beta)/:group", destination: "/rollouts/:track/:group", statusCode: 301 }];
   },
+  // Legal boilerplate is kept out of search results by a header too, not only by the page's robots meta.
+  async headers() {
+    return [{ source: "/privacy", headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }] }];
+  },
   // The browser only ever talks to this origin; Next forwards API calls to the backend.
   async rewrites() {
     return [

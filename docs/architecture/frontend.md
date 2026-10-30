@@ -90,9 +90,9 @@ spacing and thin dividers. The hero has a pseudo-3D torus knot of white dots on 
 perspective projection, no WebGL or dependencies) that stops when off-screen and under
 `prefers-reduced-motion`. The product name in the UI is **silentship** (`silentship.dev` only as an address).
 
-The footer (`app/layout.js`, every page) names both endpoints, the scope limit, and links to Privacy, the
-GitHub repository (`SITE.repo`), `privacy@silentship.dev` (`SITE.contactEmail`) and, in the faint footer colour
-without an underline until hover, Ko-fi (`SITE.support`). On a rollout page the
+The footer (`app/layout.js`, every page) names both endpoints, the scope limit, and links, all in one style
+(the faint footer colour, underlined on hover), to Notes, the GitHub repository (`SITE.repo`), Contact
+(`mailto:` `SITE.contactEmail`), Ko-fi (`SITE.support`) and Privacy (`rel="nofollow"`: the page is `noindex`). On a rollout page the
 visible labels of its sections are a tab and table column headers, which cannot hold a heading; visually
 hidden `<h2>` (`.sr-only`) give the page its outline ("Edges on new version", "API changes (N)" / "Files (N)")
 for screen readers and crawlers without changing the look.

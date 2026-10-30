@@ -28,7 +28,7 @@ the same image.
 | `/reference/<type>` | `<API> <what happened> in Office.js <channels> — silentship`, e.g. `Excel.SensitivityLabelAbacAttribute removed in Office.js beta`; several changed paths → `<type>: N API changes in Office.js` | `/reference/<type>` | `og:type=article`; the h1 repeats the title; JSON-LD `TechArticle` + `BreadcrumbList`; another spelling → 308; unknown → 404 + `noindex` |
 | `/notes` | `Notes — silentship` | `/notes` | list of notes, newest first; JSON-LD `CollectionPage` + `BreadcrumbList` |
 | `/notes/<slug>` | `<seoTitle or title> — silentship`, e.g. `New Office.js CDN endpoint vs. appsforoffice: what changes` | `/notes/<slug>` | `og:type=article` with `article:published_time`, `modified_time` (`updated`) and `article:tag` (`keywords`); its own preview image (`app/notes/[slug]/opengraph-image.js`, the title on the shared design); the h1 is `title`; JSON-LD `TechArticle` with `keywords` and `image` + `BreadcrumbList` |
-| `/privacy` | `Privacy policy — silentship` | `/privacy` | `noindex, follow`; not in the sitemap (left crawlable in `robots.txt` so the `noindex` is seen) |
+| `/privacy` | `Privacy policy — silentship` | `/privacy` | `noindex, follow` in the robots meta and an `X-Robots-Tag` header (`next.config.mjs`); not in the sitemap (left crawlable in `robots.txt` so the `noindex` is seen); the footer links it `rel="nofollow"` |
 | any unknown URL | `Page not found — silentship` (`app/not-found.js`) | — | 404 + `noindex` (added by Next) |
 
 **Structured data** is built by `frontend/lib/jsonLd.js` (`website`, `techArticle`, `breadcrumbs`,

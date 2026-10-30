@@ -136,12 +136,12 @@ main {
   gap: 4px 20px;
   margin-top: 12px;
 }
-/* Present but not asking for attention: the footer's faint text colour, no underline until hover. */
-.footer a.footer-quiet {
+/* Every footer link alike: the footer's faint text colour, no underline until hover. */
+.footer .footer-links a {
   color: var(--faint);
   text-decoration: none;
 }
-.footer a.footer-quiet:hover {
+.footer .footer-links a:hover {
   color: var(--muted);
   text-decoration: underline;
 }

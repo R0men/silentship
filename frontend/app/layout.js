@@ -70,12 +70,19 @@ export default function RootLayout({ children }) {
               <p>Not affiliated with Microsoft. Metadata and API-surface diffs only — no Microsoft code.</p>
               <p className="footer-links">
                 <Link href="/notes">Notes</Link>
-                <Link href="/privacy">Privacy</Link>
-                <a href={SITE.repo}>GitHub</a>
-                <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>
-                <a className="footer-quiet" href={SITE.support} rel="noopener">
+                <a href={SITE.repo} rel="noopener">
+                  GitHub
+                </a>
+                <a href={`mailto:${SITE.contactEmail}`} title={SITE.contactEmail}>
+                  Contact
+                </a>
+                <a href={SITE.support} rel="noopener">
                   Support on Ko-fi
                 </a>
+                {/* noindex page: no link equity from every page of the site. */}
+                <Link href="/privacy" rel="nofollow">
+                  Privacy
+                </Link>
               </p>
             </footer>
           </ToastProvider>
