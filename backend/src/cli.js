@@ -99,10 +99,21 @@ async function addWatch(email, pattern, hosts) {
   console.log(`Watching ${pattern}${hosts.length ? ` on ${hosts.join(",")}` : ""} for ${email}`);
 }
 
-/** Stored changes saved before classification get their status, and their rollouts' severity drops. */
-async function reclassify() {
-  const { changes, rollouts } = await reclassifyStored();
-  if (changes) console.log(`Reclassified ${changes} stored API change(s); lowered severity of ${rollouts} rollout(s)`);
+/**
+ * Stored changes saved under older rules (no API status, no platform check) are brought up to date, and
+ * their rollouts' severity drops. `dryRun` only prints what would change.
+ */
+async function reclassify({ dryRun = false } = {}) {
+  const { changes, rollouts, lowered } = await reclassifyStored(undefined, { dryRun });
+  for (const r of dryRun ? lowered : []) {
+    console.log(`${r.channel} ${r.toBuild} ${r.path}: ${r.from} → ${r.to}${r.note ? ` (${r.note})` : ""}`);
+  }
+  if (changes || dryRun) {
+    console.log(
+      `${dryRun ? "Would reclassify" : "Reclassified"} ${changes} stored API change(s); ` +
+        `${dryRun ? "would lower" : "lowered"} severity of ${rollouts} rollout(s)`,
+    );
+  }
 }
 
 const USAGE = `usage:
@@ -111,7 +122,7 @@ const USAGE = `usage:
   cli start                                  web server + scheduled crawls (${config.cron})
   cli dev                                    like start, on a throwaway in-memory MongoDB
   cli watch <email> <pattern> [host,host]    add a watchlist entry, e.g. Excel.Range.* excel
-  cli reclassify                             classify stored API changes saved without an API status
+  cli reclassify [--dry-run]                 bring stored API changes up to the current severity rules
   cli mail-preview <email>                   send sample confirmation, alert and rollback emails (real data, dummy tokens)
   cli subscribers                            confirmed subscribers per source (utm_source, referrer, direct)`;
 
@@ -155,7 +166,7 @@ async function main(argv) {
       return;
     }
     case "reclassify":
-      await reclassify();
+      await reclassify({ dryRun: args.includes("--dry-run") });
       await closeDb();
       return;
     case "subscribers":

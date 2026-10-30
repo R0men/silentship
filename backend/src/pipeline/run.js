@@ -6,7 +6,7 @@ import { buildManifest, LOADER_PATH } from "../crawler/manifest.js";
 import { formattedRel } from "../archive/git-archive.js";
 import { formatJs } from "../analysis/format.js";
 import { diffReflections, maxSeverity } from "../analysis/diff.js";
-import { postProcess } from "../analysis/classify.js";
+import { postProcess, rolloutNote } from "../analysis/classify.js";
 import { extractSurfaceIsolated } from "../analysis/surface-runner.js";
 import { db } from "../db.js";
 import { HISTORY_LIMIT, planFile, tallySamples } from "./rollouts.js";
@@ -113,10 +113,15 @@ async function analyzeRollout(archive, channel, entry, create, loaderSha) {
     const before = await surfaceOf(archive, create.fromSha, entry.role, loaderSha);
     const after = await surfaceOf(archive, create.toSha, entry.role, loaderSha);
     const { changes: raw, note } = diffReflections(before, after);
-    // Renames instead of remove+add pairs; preview and undocumented APIs never above low.
-    const apiChanges = postProcess(raw);
+    // Renames instead of remove+add pairs; preview and undocumented APIs never above low; a set that is
+    // not production on this file's platform one level lower.
+    const apiChanges = postProcess(raw, undefined, entry.hostPlatform ?? null);
     if (note) log(channel, `${entry.path}: ${note}`);
-    return { severity: maxSeverity(apiChanges.map((c) => c.severity)), apiChanges, note };
+    return {
+      severity: maxSeverity(apiChanges.map((c) => c.severity)),
+      apiChanges,
+      note: rolloutNote(note, apiChanges),
+    };
   } catch (err) {
     log(channel, `API diff failed for ${entry.path}: ${String(err)}`);
     return { severity: "low", apiChanges: [] };
@@ -276,7 +281,8 @@ export async function runChannel(channel, archive) {
         completedAt: null,
         severity: analysis.severity,
         apiChangeCount: analysis.apiChanges.length,
-        // Why the API diff is not complete (partial or truncated reflection), if it is not.
+        // Why the API diff is not complete (partial or truncated reflection), if it is not, and which
+        // requirement sets are not production on this file's platform.
         apiDiffNote: analysis.note ?? null,
         // office.js only: fromFlags, toFlags, bodyHashSansFlags, flagsChanged (the loader-flags-changed event).
         ...loader,
@@ -295,6 +301,7 @@ export async function runChannel(channel, archive) {
             from: a.from ?? null,
             apiStatus: a.apiStatus ?? null,
             apiSet: a.apiSet ?? null,
+            gaOnPlatform: a.gaOnPlatform ?? null,
             before: a.before ?? null,
             after: a.detail ? { ...a.after, delta: a.detail } : (a.after ?? null),
           })),

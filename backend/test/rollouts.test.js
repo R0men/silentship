@@ -139,6 +139,33 @@ describe("planFile", () => {
     });
   });
 
+  it("a rollout stuck at ~1% with long gaps stays rolling; a day on the old build everywhere is a pullback", () => {
+    // Every 10 minutes for a day: 1 hit in 100 samples every 6 hours, otherwise the old build (304).
+    const tick = 10 * 60_000;
+    const quiet = Array(100).fill(notModified);
+    const hit = [ok(NEW), ...Array(99).fill(notModified)];
+    let rollout = { _id: "r1", toSha: "new", toBuild: NEW.build, history: [], peakShare: 0.01, zeroSince: null };
+    const step = (results, at) => {
+      const u = run(stableState, results, [rollout], at).updates[0];
+      rollout = { ...rollout, ...u, history: [...rollout.history, { at, share: u.share }] };
+      return u;
+    };
+    for (let i = 1; i <= 144; i++) {
+      const u = step(i % 36 === 0 ? hit : quiet, new Date(now.getTime() + i * tick));
+      expect(u.status).toBe("rolling");
+    }
+    expect(rollout.peakShare).toBe(0.01);
+
+    // Rolled back: no edge serves the new build. Still rolling just under a day, pulled back at a day.
+    const lastHit = rollout.lastSeenAt;
+    const t = (ms) => new Date(lastHit.getTime() + ms);
+    expect(step(quiet, t(tick)).status).toBe("rolling");
+    expect(step(quiet, t(ABANDON_MS)).status).toBe("rolling"); // zeroSince is the first quiet run, a tick later
+    expect(step(quiet, t(ABANDON_MS + tick))).toMatchObject({ status: "abandoned", share: 0, lastSeenAt: lastHit });
+    // The stable version did not move: the old build is still what the file serves.
+    expect(run(stableState, quiet, [rollout], t(ABANDON_MS + 2 * tick)).state.stableSha).toBe("old");
+  });
+
   it("raises the conditional-request floor to the newest Last-Modified of stable content", () => {
     const sameBytesLaterDate = { ...OLD, lastModified: "Sat, 10 Oct 2026 10:00:00 GMT" };
     expect(run(stableState, [ok(sameBytesLaterDate)]).state.stableLM).toBe(sameBytesLaterDate.lastModified);
@@ -179,6 +206,38 @@ describe("classify", () => {
       ["low", "preview", "ExcelApi BETA (PREVIEW ONLY)"],
       ["low", "undocumented", null],
     ]);
+  });
+
+  it("lowers a GA change one level where its requirement set is not production on the file's platform", async () => {
+    const { classifyChanges, rolloutNote } = await import("../src/analysis/classify.js");
+    const status = (p) =>
+      ({
+        "Word.LineFormat.beginArrowheadStyle": { status: "ga", apiSet: "WordApiDesktop 1.3" },
+        "Word.LineFormat.weight": { status: "ga", apiSet: "WordApiDesktop 1.3" },
+        "Word.Body.getRange": { status: "ga", apiSet: "WordApiOnline 1.1" },
+        "Excel.Range.getCell": { status: "ga", apiSet: "ExcelApi 1.19" },
+      })[p];
+    const removed = (path) => ({ path, kind: "removed", severity: "high" });
+    const sev = (changes, platform) => classifyChanges(changes, status, platform).map((c) => c.severity);
+
+    expect(sev([removed("Word.LineFormat.beginArrowheadStyle")], "win32")).toEqual(["high"]);
+    expect(sev([removed("Word.LineFormat.beginArrowheadStyle")], "Mac")).toEqual(["high"]);
+    expect(sev([removed("Word.LineFormat.beginArrowheadStyle")], "ios")).toEqual(["medium"]);
+    expect(sev([{ path: "Word.LineFormat.weight", kind: "bodyChanged", severity: "medium" }], "web")).toEqual(["low"]);
+    expect(sev([removed("Word.Body.getRange")], "web")).toEqual(["high"]);
+    expect(sev([removed("Word.Body.getRange")], "win32")).toEqual(["medium"]);
+    expect(sev([removed("Excel.Range.getCell")], "ios")).toEqual(["high"]);
+    // No platform (office.js and other non-host files): nothing to compare, nothing lowered.
+    expect(sev([removed("Word.LineFormat.beginArrowheadStyle")], null)).toEqual(["high"]);
+
+    const out = classifyChanges(
+      [removed("Word.LineFormat.beginArrowheadStyle"), removed("Word.LineFormat.weight"), removed("Excel.Range.getCell")],
+      status,
+      "ios",
+    );
+    expect(out.map((c) => c.gaOnPlatform)).toEqual([false, false, true]);
+    expect(rolloutNote(null, out)).toBe("WordApiDesktop 1.3 is not GA on ios");
+    expect(rolloutNote("new side failed", [])).toBe("new side failed");
   });
 
   it("turns a removed+added pair into a rename, judged by the old name's status", async () => {

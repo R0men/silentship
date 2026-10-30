@@ -21,6 +21,9 @@
 
 - **2026-10-30** — [2026-10-30.md](2026-10-30.md)
   - `[Docs]` Note: Word.LineFormat lost 8 documented properties in Office.js 16.0.20619
+  - `[Feature]` Severity follows the platforms where a requirement set is production; `reclassify --dry-run`
+  - `[Docs]` Tests for a stalled rollout that is pulled back
+  - `[Style]` Footer links in one style; `/privacy` also sends `X-Robots-Tag: noindex`
 
 - **2026-10-27** — [2026-10-27.md](2026-10-27.md)
   - `[Bug Fix]` Home headline names the release in flight and its severity; cards show both endpoints and the previous build

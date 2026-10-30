@@ -80,16 +80,63 @@ export function detectRenames(changes) {
   return [...changes.filter((c) => !used.has(c)), ...renames];
 }
 
-/** Attach API status and requirement set; demote everything that is not GA to low. */
-export function classifyChanges(changes, statusOf = apiStatus) {
+/**
+ * Requirement sets that are production on some platforms only; every other set (ExcelApi, WordApi,
+ * PowerPointApi, Mailbox, OneNoteApi…) counts as GA wherever its host runs. Platforms are `hostPlatform`
+ * values from the loader's file map. Source: the requirement set pages on Microsoft Learn, e.g.
+ * https://learn.microsoft.com/en-us/javascript/api/requirement-sets/word/word-api-desktop-1.3-requirement-set
+ * ("production on Windows and Mac") and .../word/word-api-online-requirement-set ("web only").
+ */
+const GA_PLATFORMS = [
+  [/^(WordApiDesktop|ExcelApiDesktop|PowerPointApiDesktop|WordApiHiddenDocument)\b/, ["win32", "mac"]],
+  [/^(WordApiOnline|ExcelApiOnline|PowerPointApiOnline)\b/, ["web"]],
+];
+
+/** Is `apiSet` production on `platform`? true when either is unknown: only a known mismatch demotes. */
+export function gaOnPlatform(apiSet, platform) {
+  if (!apiSet || !platform) return true;
+  const rule = GA_PLATFORMS.find(([re]) => re.test(apiSet));
+  return !rule || rule[1].includes(String(platform).toLowerCase());
+}
+
+const DEMOTE = { high: "medium", medium: "low", low: "low" };
+
+/**
+ * A GA change in a file for a platform where its requirement set is not production is one level lower:
+ * add-ins on that platform cannot rely on the set anyway. `platformNote` says why, when it lowered anything.
+ */
+export function platformSeverity({ severity, apiSet }, platform) {
+  if (gaOnPlatform(apiSet, platform)) return { severity, gaOnPlatform: true, platformNote: null };
+  const lowered = DEMOTE[severity] ?? severity;
+  return {
+    severity: lowered,
+    gaOnPlatform: false,
+    platformNote: lowered !== severity ? `${apiSet} is not GA on ${String(platform).toLowerCase()}` : null,
+  };
+}
+
+/**
+ * Attach API status and requirement set; demote everything that is not GA to low, and GA changes one level
+ * where their set is not production on the file's `platform` (null for files without one, e.g. office.js).
+ */
+export function classifyChanges(changes, statusOf = apiStatus, platform = null) {
   return changes.map((c) => {
     // The side that existing add-ins depend on decides: the old name for removals and renames.
     const info = statusOf(c.kind === "renamed" ? c.from : c.path);
-    const severity = info.status === "ga" ? c.severity : "low";
-    return { ...c, apiStatus: info.status, apiSet: info.apiSet ?? null, severity };
+    const apiSet = info.apiSet ?? null;
+    if (info.status !== "ga") {
+      return { ...c, apiStatus: info.status, apiSet, severity: "low", gaOnPlatform: null, platformNote: null };
+    }
+    return { ...c, apiStatus: info.status, apiSet, ...platformSeverity({ severity: c.severity, apiSet }, platform) };
   });
 }
 
-export function postProcess(changes, statusOf) {
-  return classifyChanges(detectRenames(changes), statusOf);
+export function postProcess(changes, statusOf, platform) {
+  return classifyChanges(detectRenames(changes), statusOf, platform);
+}
+
+/** One rollout's `apiDiffNote`: the diff's own note and the distinct platform notes of its changes. */
+export function rolloutNote(note, changes) {
+  const parts = [note, ...new Set(changes.map((c) => c.platformNote).filter(Boolean))].filter(Boolean);
+  return parts.length ? parts.join("; ") : null;
 }

@@ -108,12 +108,24 @@ change gets `apiStatus` (`ga` / `preview` / `undocumented`) and `apiSet` (`Excel
   explicitly warns they may change;
 - undocumented members (present at runtime, absent from the types) are Low too.
 
+**Platform of the file.** Some requirement sets are production on some platforms only: `WordApiDesktop`,
+`ExcelApiDesktop` and `WordApiHiddenDocument` on Windows and Mac, `WordApiOnline` and `ExcelApiOnline` on the
+web (the table `GA_PLATFORMS` in `classify.js`, with the Microsoft Learn source). A GA change in a file whose
+`hostPlatform` is not in its set's list drops one level (High → Medium, Medium → Low); every other set counts
+as GA on every platform, and a file without a platform (`office.js`) is never lowered. The change keeps
+`gaOnPlatform: false`, and the rollout's `apiDiffNote` says why ("WordApiDesktop 1.3 is not GA on ios"). Example:
+16.0.20619 removed eight `Word.LineFormat` properties (WordApiDesktop 1.3): High in `word-win32` and `word-mac`,
+Medium in `word-ios`, `word-web`, `word-android`. A rollout's and a release's severity is still the maximum
+over their files.
+
 The types are updated with the dependencies (`npm update -w backend`).
 
 **Stored changes without a status.** Changes saved before classification existed (the beta rollout of
 16.0.20606.15070, first seen 2026-10-14) have no `apiStatus` and keep the raw diff's severity — preview
 removals showed as High. `reclassifyStored` (`analysis/reclassify.js`) classifies every row with
-`apiStatus: null` and lowers the severity of its rollouts to match; it never raises one, so the guard against
+`apiStatus: null`, applies the platform rule to GA rows saved before it existed (`gaOnPlatform` missing) and
+lowers the severity of their rollouts to match; `npm run reclassify -w backend -- --dry-run` prints what it
+would lower without writing; it never raises one, so the guard against
 High from an incomplete reflection holds. `cli start` runs it at boot; `npm run reclassify -w backend` runs it
 alone. Idempotent: a second run finds nothing. Alerts already sent are not resent.
 

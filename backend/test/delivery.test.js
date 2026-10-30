@@ -139,6 +139,36 @@ describe("alert delivery", () => {
     expect(sent).toEqual([]);
   });
 
+  it("alerts a stalled build that was pulled back once, after its rollout alert, and not again if it returns", async () => {
+    await addRollout("word-win32-16.01.js", 0, [{ path: "Word.LineFormat.pattern", kind: "removed", severity: "high" }]);
+    await addRollout("word-mac-16.00.js", 5, [{ path: "Word.LineFormat.pattern", kind: "removed", severity: "high" }]);
+    await alerts.notifyPending(20, at(60));
+    expect(sent.find((m) => m.transport === "email").subject).toMatch(/^\[high\]/);
+    sent.length = 0;
+
+    // One file pulled back, the other still at 1%: not a rollback yet.
+    await col.rollouts.updateOne({ path: "word-win32-16.01.js" }, { $set: { status: "abandoned", rollbackNotifiedAt: null } });
+    await alerts.notifyPending(20, at(120));
+    expect(sent).toEqual([]);
+
+    // Both pulled back: one rollback alert.
+    await col.rollouts.updateMany({}, { $set: { status: "abandoned", rollbackNotifiedAt: null } });
+    await alerts.notifyPending(20, at(180));
+    expect(sent.filter((m) => m.transport === "email").map((m) => m.subject)).toEqual([
+      "[pulled back] Office.js beta: build 16.0.3 rolled back",
+    ]);
+    sent.length = 0;
+    await alerts.notifyPending(20, at(190));
+    expect(sent).toEqual([]);
+
+    // The build comes back and is pulled again: the rollout alert and the rollback alert are not repeated.
+    await col.rollouts.updateMany({}, { $set: { status: "rolling" } });
+    await alerts.notifyPending(20, at(200));
+    await col.rollouts.updateMany({}, { $set: { status: "abandoned" } });
+    await alerts.notifyPending(20, at(210));
+    expect(sent).toEqual([]);
+  });
+
   it("drops a queued email when the subscriber unsubscribed meanwhile", async () => {
     await addRollout("excel-web-16.00.js", 0, [{ path: "Excel.Range.foo", kind: "removed", severity: "high" }]);
     failing = true;

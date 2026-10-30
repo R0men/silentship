@@ -89,6 +89,9 @@ The loader picks the host file from `_host_Info` (from `window.external.GetHostI
    - `High` — a public GA member disappeared, its type or arity changed, an enum value was removed or changed; a file was deleted; `office.js` changed its security-default flags (`loader-flags-changed`: on legacy this stops loading MicrosoftAjax for every add-in it reaches).
    - `Medium` — the body of a public GA function changed (not its signature).
    - `Low` — new API, preview and undocumented APIs, class constructors, strings, telemetry, a new file.
+   - A GA change in a file for a platform where its requirement set is not production is one level lower
+     (High → Medium, Medium → Low): `WordApiDesktop`, `ExcelApiDesktop`, `WordApiHiddenDocument` are production
+     on Windows and Mac only, `WordApiOnline` and `ExcelApiOnline` on the web only.
 4. **Watchlist:** a subscriber lists the APIs their add-in uses (`Office.context.ui.displayDialogAsync`,
    `Excel.Range.*`) and is alerted only about changes that touch them — the main defence against noise.
    Today entries are added from the CLI (`npm run watch`); there is no UI yet.
