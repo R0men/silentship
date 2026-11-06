@@ -109,7 +109,7 @@ Production setup, environment variables and deployment: [`docs/SETUP.md`](docs/S
 
 ```
 backend/src/
-  cli.js        crawl / serve / start / dev / watch / reclassify / mail-preview / subscribers
+  cli.js        crawl / serve / start / dev / watch / reclassify / mail-preview / subscribers / snapshots
   crawler/      loader → manifest, sampling, build stamps, HTTP metadata
   pipeline/     one crawl of a channel, rollout rules
   analysis/     sandbox, reflection, body hash, diff, severity, watchlist

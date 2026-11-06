@@ -7,6 +7,7 @@ import { notifyPending, pruneUnconfirmed, sendPreviewEmails } from "./notify/ale
 import { startServer } from "./web/server.js";
 import { reclassifyStored } from "./analysis/reclassify.js";
 import { pingHealthcheck } from "./notify/healthcheck.js";
+import { readSnapshots } from "./archive/snapshot-history.js";
 
 let running = false;
 
@@ -124,13 +125,14 @@ const USAGE = `usage:
   cli watch <email> <pattern> [host,host]    add a watchlist entry, e.g. Excel.Range.* excel
   cli reclassify [--dry-run]                 bring stored API changes up to the current severity rules
   cli mail-preview <email>                   send sample confirmation, alert and rollback emails (real data, dummy tokens)
-  cli subscribers                            confirmed subscribers per source (utm_source, referrer, direct)`;
+  cli subscribers                            confirmed subscribers per source (utm_source, referrer, direct)
+  cli snapshots <file> <from> [to]           per-run samples of a file, from MongoDB and the backup files, e.g. onenote-winrt-16.00.js 2026-10-15 2026-10-16`;
 
 async function main(argv) {
   const [command, ...args] = argv;
   const archive = new GitArchive(config.archiveDir);
   // Fail at startup with one clear message rather than on every crawl tick.
-  if (["crawl", "serve", "start", "watch", "reclassify", "mail-preview", "subscribers"].includes(command) && !process.env.MONGODB_URI) {
+  if (["crawl", "serve", "start", "watch", "reclassify", "mail-preview", "subscribers", "snapshots"].includes(command) && !process.env.MONGODB_URI) {
     throw new Error(
       "MONGODB_URI is not set (see .env.example), or use `node src/cli.js dev` for an in-memory database.",
     );
@@ -173,6 +175,17 @@ async function main(argv) {
       await subscriberSources();
       await closeDb();
       return;
+    case "snapshots": {
+      const [file, from, to] = args;
+      const start = new Date(`${from}T00:00:00Z`);
+      // Without `to`, the one day `from` names; with it, up to and including that day.
+      const end = new Date(`${to ?? from}T00:00:00Z`);
+      if (!file || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) throw new Error(USAGE);
+      end.setUTCDate(end.getUTCDate() + 1);
+      for (const row of await readSnapshots({ path: file, from: start, to: end })) console.log(JSON.stringify(row));
+      await closeDb();
+      return;
+    }
     case "watch": {
       const [email, pattern, hosts] = args;
       if (!email || !pattern) throw new Error(USAGE);

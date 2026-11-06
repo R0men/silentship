@@ -61,8 +61,8 @@ One `.env` at the repository root serves both workspaces; the template is `.env.
 | `BREVO_API_KEY`, `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME` | — | email via Brevo |
 | `MAIL_REPLY_TO` | — | Reply-To of the confirmation and welcome emails (e.g. `hello@<domain>`) |
 | `SLACK_WEBHOOK_URL` | — | Slack alerts |
-| `HEALTHCHECK_URL` | — | dead-man's switch: `GET` after every crawl where all channels finished, `<url>/fail` after one with a failed channel (healthchecks.io format; 5 s timeout, a failed ping is only logged) |
-| `BACKUP_DIR` | `~/backups` | `deploy/backup.sh`: where dumps go |
+| `HEALTHCHECK_URL` | — | dead-man's switch: `GET` after every crawl where all channels finished, `<url>/fail` after one with a failed channel (healthchecks.io format; 5 s timeout, a failed ping is only logged). `deploy/backup.sh` also pings `<url>/fail` when a nightly run fails |
+| `BACKUP_DIR` | `~/backups` | `deploy/backup.sh`: where dumps go; the backend reads samples older than the TTL from its `snapshots/` |
 | `BACKUP_RCLONE_REMOTE` | — | `deploy/backup.sh`: rclone destination for an off-site copy (e.g. `b2:silentship-backups`) |
 | `ARCHIVE_REMOTE` | — | `deploy/backup.sh`: **private** git remote the archive is pushed to |
 | `API_URL` (frontend) | `http://127.0.0.1:$API_PORT` | where Next fetches data |
@@ -179,10 +179,16 @@ Brevo → Senders, Domains & Dedicated IPs → add your domain. Brevo shows the 
 1. `mongodump --archive --gzip` of the database into `$BACKUP_DIR/daily/silentship-<date>.archive.gz`
    (the URI goes through a 0600 config file, never the command line); on Sundays a copy in `weekly/`;
 2. rotation: the 14 newest daily and 8 newest weekly dumps stay;
-3. with `BACKUP_RCLONE_REMOTE` — `rclone sync` of both folders off the server; without it a warning in the log;
-4. with `ARCHIVE_REMOTE` — `git push` of `data/archive` (HEAD → `main`) to that remote. The archive is
+3. `mongoexport` of each finished day of `snapshots` into `$BACKUP_DIR/snapshots/<date>.jsonl.gz`. MongoDB deletes
+   them after 30 days and the dumps rotate out, so these files are their only long-term history and are never
+   rotated. Any day inside those 30 days without a file is exported, so the first run and a missed night catch up
+   on their own; a failed day leaves no file, is retried the next night and fails the run;
+4. with `BACKUP_RCLONE_REMOTE` — `rclone sync` of the three folders off the server; without it a warning in the log;
+5. with `ARCHIVE_REMOTE` — `git push` of `data/archive` (HEAD → `main`) to that remote. The archive is
    the history of every Office.js version seen and cannot be downloaded again later. It holds Microsoft's
-   code: the remote must be private.
+   code: the remote must be private;
+6. with `HEALTHCHECK_URL` — any failed run pings `<url>/fail`. The next crawl's ping marks the check up again, so a
+   failure arrives as one notification rather than a lasting "down". A run that never starts sends nothing.
 
 Settings come from the environment or the repository's `.env` (`MONGODB_URI`, `MONGODB_DB`, `ARCHIVE_DIR`
 and the variables above). Setup, once:
@@ -206,6 +212,12 @@ mongorestore --uri="$MONGODB_URI" --gzip --archive=silentship-2026-10-27.archive
 # The archive: clone the private remote back into ARCHIVE_DIR
 git clone "$ARCHIVE_REMOTE" ~/silentship/data/archive
 ```
+
+Snapshots need no restore: `readSnapshots` (`backend/src/archive/snapshot-history.js`) reads MongoDB and the files
+of `$BACKUP_DIR/snapshots` together, so a row is found wherever it is now. By hand:
+`npm run snapshots -w backend -- onenote-winrt-16.00.js 2026-10-15`. It reads only the local folder: if the server
+is lost, copy `snapshots/` back from the rclone remote first. Do not import old rows into the live database, where
+the TTL would delete them again.
 
 Checked on 2026-10-27 locally against a throwaway MongoDB (not production): `backup.sh` produced the dump,
 rotated 21 daily files down to 14, and `mongorestore` into `silentship_restore` gave the same document

@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
@@ -57,6 +58,8 @@ export const config = {
   /** Database name; defaults to the one in the URI, else "silentship". */
   mongoDb: process.env.MONGODB_DB || undefined,
   archiveDir: path.resolve(ROOT, env("ARCHIVE_DIR", "./data/archive")),
+  /** Where deploy/backup.sh writes; its snapshots/ folder holds samples older than the TTL. */
+  backupDir: path.resolve(ROOT, env("BACKUP_DIR", path.join(homedir(), "backups"))),
   region: env("REGION", "local"),
   /** Crawled one after another in this order: legacy first, so the new endpoint never delays it. */
   channels: parseChannels(env("CHANNELS", "prod,beta,onecdn-prod,onecdn-beta")),

@@ -29,14 +29,14 @@ The model exists: `subscribers.watchItems[] = { pattern, hosts }`, `minSeverity`
 
 For an add-in developer a run where most edges answer 404 for a host file is a real outage, however short:
 on 2026-10-15 at 16:16 UTC five of eight edges returned 404 for `onenote-winrt-16.00.js` (OneNote on
-Windows), and the next run served it again. Its per-run samples expire around 2026-11-14 (TTL 30 days), so copy them before then if this incident is to keep its evidence. Today such a sighting is a rollout that is never confirmed and
+Windows), and the next run served it again. Its per-run samples leave MongoDB around 2026-11-14 (TTL 30 days); the nightly backup keeps them in `snapshots/2026-10-15.jsonl.gz` if it first runs with that step before then (`../SETUP.md`, "Backups"). Today such a sighting is a rollout that is never confirmed and
 is abandoned after 24 h without an alert and is hidden on the site (`docs/architecture/alerts.md`). Plan:
 
 - Detect it from data we already have: a removal (or a new sha) seen in exactly one run, or 404 / 5xx on
   ≥ 50% of a file's samples while the stable version keeps being served.
 - Show it on the site as its own event, e.g. "CDN incident: onenote-winrt-16.00.js 404 on 5/8 edges,
   16:16 UTC, ~10 min", with edge IPs and locations from `snapshots`; list it in RSS and `llms.txt`.
-- Keep it: `snapshots` expire after 30 days (TTL), so an incident record must copy its evidence (sample
+- Keep it: `snapshots` expire after 30 days (TTL). `readSnapshots` still finds older rows in the backup files on this server, but those are a copy for diagnostics, so an incident record must copy its evidence (sample
   counts, edges, timestamps) into a permanent collection when detected. Do not delete the abandoned rollout
   documents of past incidents.
 - Alert on it only once it is clearly an outage (several runs or several files); a single-run event is

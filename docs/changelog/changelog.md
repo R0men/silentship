@@ -11,6 +11,9 @@
   of a full-refresh run can notice one, so a rollback after `complete` may go unreported. The CDN sends no `ETag`.
 - 🟠 **OneCDN releases before this fix have incomplete API diffs:** the worker failed on most of their files, so
   those rollouts hold few API changes. The site and alerts take a release from legacy, which is complete.
+- 🔵 **Daily snapshot files are not yet checked with the real `mongoexport`:** tests use stubs. After the first
+  nightly run look at `snapshots/` in `BACKUP_DIR`; it must run before 2026-11-14 to keep the 2026-10-15 incident
+  (`../tasks/PLAN.md`, #10).
 - 🔵 **The private archive has no copy off the server:** set `ARCHIVE_REMOTE` (`../SETUP.md`, "Backups").
 - 🔵 **OneCDN edge spread:** compare how many distinct edges each endpoint reaches from the server, by the
   `a=` field of `Akamai-Request-BC` (`architecture/cdn-facts.md`); from one home network both landed on the
@@ -29,6 +32,8 @@
   - `[Feature]` Release and API type pages explain a lowered severity
   - `[Feature]` `/reference` is the Office.js API changelog; its description follows the newest change
   - `[Infra]` Fewer database reads and writes: run cache, informative snapshots only, TTL 30 days
+  - `[Infra]` Snapshots outlive the TTL: daily files in the nightly backup, `readSnapshots` joins them with MongoDB
+  - `[Infra]` A failed nightly backup pings the healthcheck
   - `[Infra]` `.env.*` and local task files are ignored
   - `[Docs]` Known issues updated
 
