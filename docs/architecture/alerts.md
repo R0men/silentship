@@ -68,7 +68,7 @@ every run after served the file again. Before this rule that produced a "files r
 was wrong as a *rollout* alert. Unconfirmed groups stay pending and, if never seen again, are abandoned
 after 24 h without an alert; the site applies the same rule and never shows them (`listGroups`,
 [`web.md`](web.md)). **The data is kept** (the rollout document with its share history; per-run
-samples in `snapshots`, TTL 90 days) — surfacing such incidents is planned (`docs/tasks/PLAN.md`, #10).
+samples in `snapshots`, TTL 30 days) — surfacing such incidents is planned (`docs/tasks/PLAN.md`, #10).
 
 **Rollbacks always alert.** When every file of a confirmed group has been abandoned (no sampled edge has
 served it for 24 h), Microsoft pulled the build back (`groupRolledBack`). `notifyRollback` sends a

@@ -45,7 +45,8 @@ office.js ──┼─ edge B ── 200 + new body ────► sha 9f3c… 
 4. **A version is a sha256, not a date or a build number.** Identical bytes come with different
    `Last-Modified` on different edges, and host files change without a new build stamp.
 5. **Share → rollout state.** The share of samples serving a new sha is smoothed over six runs. 100% for
-   three runs in a row → complete; no sightings for 24 hours → pulled back (revived if it returns).
+   six runs in a row across at least twelve different edges → complete; no sightings for 24 hours → pulled back
+   (revived if it returns).
 6. **One Microsoft release = one page.** Rollouts of the same target build are grouped:
    [`/rollouts/prod/16.0.20606.15070`](https://silentship.dev/rollouts/prod/16.0.20606.15070) shows the
    share per host file and every API change.

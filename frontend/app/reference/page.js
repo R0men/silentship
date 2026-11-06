@@ -1,23 +1,35 @@
 import Link from "next/link";
+import { cache } from "react";
 import JsonLd from "@/components/JsonLd";
 import { ChannelTag, Severity } from "@/components/ui";
 import { apiGetOr } from "@/lib/api";
 import { statusLabel, typeHref } from "@/lib/apiType";
-import { fmtDate, KIND_LABEL } from "@/lib/format";
+import { fmtDate, KIND_LABEL, latestChangeText } from "@/lib/format";
 import { breadcrumbs, collectionPage } from "@/lib/jsonLd";
 import { pageMeta } from "@/lib/site";
 
 // New types appear after every rollout with API changes; never prerender at build time.
 export const dynamic = "force-dynamic";
 
-const TITLE = "Office.js API changes by type";
-const DESCRIPTION =
-  "Every Office.js class, enum and function whose public API changed on the Microsoft CDN: removals, renames, new APIs and changed enum values in Excel, Word, PowerPoint, Outlook and OneNote, build by build.";
+const TITLE = "Office.js API changelog: what changed in each CDN build";
+const SUMMARY = "Every Office.js API added, removed or renamed on Microsoft's CDN, per build.";
 
-export const metadata = pageMeta({ path: "/reference", title: TITLE, description: DESCRIPTION });
+/** One backend call per request, shared by the metadata and the page. */
+const load = cache(() => apiGetOr("/api/types", { types: [], latest: null }));
+
+/** The newest change that matters comes first, so the snippet updates itself with every such build. */
+const describe = (latest) => (latest ? `${latestChangeText(latest)} ${SUMMARY}` : SUMMARY);
+
+export async function generateMetadata() {
+  const { latest } = await load();
+  return {
+    ...pageMeta({ path: "/reference", title: TITLE, description: describe(latest) }),
+    title: { absolute: `${TITLE} | silentship` },
+  };
+}
 
 export default async function ReferenceHub() {
-  const { types } = await apiGetOr("/api/types", { types: [] });
+  const { types, latest } = await load();
   const byNamespace = new Map();
   for (const t of types) {
     if (!byNamespace.has(t.namespace)) byNamespace.set(t.namespace, []);
@@ -32,13 +44,13 @@ export default async function ReferenceHub() {
           collectionPage({
             path: "/reference",
             name: TITLE,
-            description: DESCRIPTION,
+            description: describe(latest),
             items: types.map((t) => [t.type, typeHref(t.type)]),
           }),
-          breadcrumbs([["Office.js API changes", "/reference"]]),
+          breadcrumbs([["Office.js API changelog", "/reference"]]),
         ]}
       />
-      <h1 className="type-title">Office.js API changes</h1>
+      <h1 className="type-title">Office.js API changelog</h1>
       <p className="type-lede">
         Every class, enum and function whose public API changed in an Office.js build on the Microsoft CDN, newest
         first. Each page shows what changed, in which builds, on which hosts and how far the rollout got in production

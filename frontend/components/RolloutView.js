@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { typeHref } from "@/lib/apiType";
+import { loweredText, typeHref } from "@/lib/apiType";
 import { apiStatusLabel, hostLabel, KIND_LABEL, pct, STATUS_LABEL } from "@/lib/format";
 import { Segmented, Severity, ShareBar, Sparkline } from "./ui";
 
@@ -41,6 +41,7 @@ function HostsTable({ hosts }) {
             <div className="detail">
               {h.added ? "new file" : h.removed ? "file removed" : `${h.fromBuild ?? "?"} → ${h.toBuild ?? "?"}`}
             </div>
+            {h.severityNote && <div className="detail">{h.severityNote}</div>}
           </div>
           <div className="muted">
             {STATUS_LABEL[h.status]}
@@ -136,6 +137,7 @@ export default function RolloutView({ rollout }) {
                     <span className={`api-status api-${c.apiStatus ?? "ga"}`}>{apiStatusLabel(c)}</span>
                   )}
                 </div>
+                {loweredText(c) && <div className="detail">{loweredText(c)}</div>}
               </div>
               <div className="muted">{KIND_LABEL[c.kind] ?? c.kind}</div>
               <div>

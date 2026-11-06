@@ -33,6 +33,16 @@ export function hostsSentence(files) {
   return list([...byHost].map(([host, ps]) => (ps.length ? `${host} on ${list(ps)}` : host)));
 }
 
+/**
+ * Why some files of a change are below the severity shown for it (`lowered` from the API):
+ * "Medium on Word on iOS and web: WordApiDesktop 1.3 is not GA there." null when none are.
+ */
+export function loweredText(c) {
+  if (!c.lowered?.length) return null;
+  const level = c.lowered[0].severity;
+  return `${level[0].toUpperCase()}${level.slice(1)} on ${hostsSentence(c.lowered.map((l) => l.file))}: ${c.apiSet} is not GA there.`;
+}
+
 function list(items) {
   if (items.length <= 1) return items.join("");
   return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;

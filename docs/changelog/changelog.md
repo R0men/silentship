@@ -6,9 +6,12 @@
   `.next` folder the running Next process serves from (`deploy/deploy.sh`). Moving a finished `.next` from
   another folder does not work: Next 16 bakes the `distDir` name into its chunks. An option is release
   folders behind a symlink, with the unit's `WorkingDirectory` pointing at the symlink.
-- 🔵 **Backups and the healthcheck are not set up on the server yet:** install `mongodb-database-tools` and
-  rclone, enable `silentship-backup.timer`, set `BACKUP_RCLONE_REMOTE`, `ARCHIVE_REMOTE` (private),
-  `HEALTHCHECK_URL`, `MAIL_REPLY_TO` (`../SETUP.md`, "Backups", "Monitoring").
+- 🟠 **After `complete`, older edges cannot be seen:** samples ask `If-Modified-Since` the new version's date, so an
+  edge still on an older version answers `304`, which counts for the stable version. Only the unconditional sample
+  of a full-refresh run can notice one, so a rollback after `complete` may go unreported. The CDN sends no `ETag`.
+- 🟠 **OneCDN releases before this fix have incomplete API diffs:** the worker failed on most of their files, so
+  those rollouts hold few API changes. The site and alerts take a release from legacy, which is complete.
+- 🔵 **The private archive has no copy off the server:** set `ARCHIVE_REMOTE` (`../SETUP.md`, "Backups").
 - 🔵 **OneCDN edge spread:** compare how many distinct edges each endpoint reaches from the server, by the
   `a=` field of `Akamai-Request-BC` (`architecture/cdn-facts.md`); from one home network both landed on the
   same edge.
@@ -18,6 +21,16 @@
   Webmaster Tools.
 
 ## History
+
+- **2026-11-06** — [2026-11-06.md](2026-11-06.md)
+  - `[Bug Fix]` A rollout completes only after 6 runs on 12 different edges (or 36 runs in any case)
+  - `[Bug Fix]` OneCDN builds get complete API diffs; a failed diff says so
+  - `[Bug Fix]` Home cards name a build only where it is settled
+  - `[Feature]` Release and API type pages explain a lowered severity
+  - `[Feature]` `/reference` is the Office.js API changelog; its description follows the newest change
+  - `[Infra]` Fewer database reads and writes: run cache, informative snapshots only, TTL 30 days
+  - `[Infra]` `.env.*` and local task files are ignored
+  - `[Docs]` Known issues updated
 
 - **2026-10-30** — [2026-10-30.md](2026-10-30.md)
   - `[Docs]` Note: Word.LineFormat lost 8 documented properties in Office.js 16.0.20619

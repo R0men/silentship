@@ -21,15 +21,22 @@ Code: `frontend/` — Next.js 16 (App Router, Turbopack), React 19, JavaScript. 
 **One UI for both endpoints.** The crawler has four channels, but the site shows two tracks — production and
 beta (`CHANNELS` in `lib/format.js`) — because the legacy and OneCDN endpoints serve byte-identical host files
 (`ENDPOINTS`: `appsforoffice.microsoft.com`, `officeapis.public.onecdn.static.microsoft`). The home page has two
-cards; under the build, "Same build on legacy and onecdn" or each endpoint's build, then a share bar per
-release in flight — or, when nothing rolls, the newest release with how it ended ("Complete 16.0.20606.15070",
-completion time, a full bar). The list has one row per
+cards. With nothing in flight, the card's build is the stable one, then "Same build on legacy and onecdn" or each
+endpoint's build, and the newest release with how it ended ("Complete 16.0.20606.15070", completion time, a full
+bar). With a release in flight, the build is the one the track settled on (what the oldest such release started
+from), with a share bar per release. The list has one row per
 track and build; a row carries an endpoint badge (`divergence`: "N files differ", "loader flags changed") only
 when the endpoints diverge on the same build, and a neutral "not yet on onecdn" (`notYetOn`) while one endpoint
 still serves files on an older build. API counts everywhere are unique changes first, files second
 (`apiChangesText`: "5 API changes in 19 files"). There is no endpoint filter. A card with a release in flight
-shows its share per endpoint ("legacy 1% · onecdn 3% of edges") and under it "previous: 16.0.20612
-complete" (`overview.previous`).
+shows "Rolling out 16.0.20619 → 16.0.20626", its progress per endpoint (`endpointProgress`: "legacy 44% · onecdn
+51% of edges") and under it "previous: 16.0.20612 complete" (`overview.previous`). A build is named per endpoint
+only where it is settled ("legacy 16.0.20626 (complete) · onecdn rolling out, 51%"): `endpoints[].build` is one
+file, `office.js`, and can finish long before the host files, so it never names an endpoint's build mid-rollout.
+
+A change lowered on some platforms keeps the highest severity on its row, with the reason under it (`loweredText`:
+"Medium on Word on iOS and web: WordApiDesktop 1.3 is not GA there."), on rollout and API type pages; the Files tab
+shows the file's own severity and `severityNote`.
 
 **A release page explains itself** (`releaseSummary` in `lib/format.js`): one sentence on what rolls out
 where, since when and on what share, and a verdict by severity — no public API changes / only preview or

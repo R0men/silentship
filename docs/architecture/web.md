@@ -59,6 +59,15 @@ stable on it in `fileStates`; fileStates alone forget the baseline once the next
 - `onecdnCrawled` is false when `CHANNELS` has no OneCDN twin; then a release is just the legacy group.
 - Group numbers still come only from `listGroups`; releases combine its results.
 
+## Caching
+
+Read models change only when a crawl writes, and a page costs dozens of round trips to the database (about 35 ms
+each from production), which is where almost all of a response's time goes. So `/api/home` and `/api/overview` are
+served from the live feed's snapshot, and the other read routes from `createRunCache` (`web/run-cache.js`): a result
+is reused until `live.version` changes, within seconds of a crawl starting or finishing and at least every 5 minutes.
+Concurrent requests share one build, a failed build is not kept, and at most 100 results are held. `/health` is
+never cached.
+
 ## API types (/reference)
 
 A page per **type**, not per member: `apiTypeOf(path)` cuts a path at its last PascalCase segment after the
@@ -72,6 +81,8 @@ root (`Excel.Copilot.allowedUrls` → `Excel.Copilot`); a path without one belon
 - Legacy channels only (`prod`, `beta`): OneCDN serves the same host files, so its groups would repeat every
   change of a build on a second row. A build seen on OneCDN alone reaches `/reference` once it reaches legacy.
 - A change whose files were all pulled back has status `abandoned`.
+- `/api/types` also returns `latest` (`latestNotableChange`): from the newest release that was not pulled back
+  and has a Medium or High API change, the largest set of same-kind changes on one type at the top severity.
 - `docs`: the type's status today from the `@types` catalogue (`ga` / `preview` / `undocumented`), its requirement
   set and Microsoft Learn URL ([`api-surface.md`](api-surface.md)); `/api/types` has the status per type too.
 - The lookup is exact; on a miss a case-insensitive retry returns the canonical spelling and the page answers

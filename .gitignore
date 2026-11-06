@@ -2,6 +2,9 @@ node_modules
 .next
 .next-*
 .env
+.env.*
+!.env.example
+/TASKS-*.md
 /data
 .deploy.lock
 # Local agent tooling, not part of the project

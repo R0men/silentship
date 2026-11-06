@@ -116,7 +116,8 @@ as GA on every platform, and a file without a platform (`office.js`) is never lo
 `gaOnPlatform: false`, and the rollout's `apiDiffNote` says why ("WordApiDesktop 1.3 is not GA on ios"). Example:
 16.0.20619 removed eight `Word.LineFormat` properties (WordApiDesktop 1.3): High in `word-win32` and `word-mac`,
 Medium in `word-ios`, `word-web`, `word-android`. A rollout's and a release's severity is still the maximum
-over their files.
+over their files, and so is a row of the API change list. The API says which files sit lower: `lowered` on a
+change (`[{ file, severity }]`) and `severityNote` on a file, the platform part of `apiDiffNote`.
 
 The types are updated with the dependencies (`npm update -w backend`).
 

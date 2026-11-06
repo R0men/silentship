@@ -14,6 +14,7 @@ import {
   getRelease,
   homeSnapshot,
   isTrack,
+  latestNotableChange,
   listApiTypes,
   listReleases,
   overview,
@@ -21,6 +22,7 @@ import {
   TYPE_RE,
 } from "./queries.js";
 import { createLiveFeed } from "./live.js";
+import { createRunCache } from "./run-cache.js";
 import { actionPage } from "./action-page.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -81,6 +83,8 @@ export async function buildServer() {
   const allowSubscribe = rateLimiter(5, 3600_000);
   // Global cap on confirmation emails: protects the Brevo quota and sender reputation from a botnet.
   const allowConfirmationEmail = rateLimiter(config.maxConfirmationsPerHour, 3600_000);
+  const live = createLiveFeed();
+  const cached = createRunCache(() => live.version);
 
   /** For uptime monitors: 503 unless every channel finished a crawl recently and none is stuck. */
   app.get("/health", async (_req, reply) => {
@@ -88,51 +92,59 @@ export async function buildServer() {
     return reply.code(report.ok ? 200 : 503).send(report);
   });
 
-  app.get("/api/overview", async () => overview());
+  app.get("/api/overview", async () => live.snapshot?.overview ?? overview());
 
   /** The home page in one call: the same snapshot /api/live pushes. */
-  app.get("/api/home", async () => homeSnapshot());
+  app.get("/api/home", async () => live.snapshot ?? homeSnapshot());
 
   /** Releases (one per track and build, both endpoints), newest first; `channel` is the track. */
   app.get("/api/rollouts", async (req) => {
     const before = req.query.before ? new Date(req.query.before) : null;
-    const groups = await listReleases({
+    const args = {
       track: isTrack(req.query.channel) ? req.query.channel : null,
       severity: SEVERITY_RANK[req.query.severity] !== undefined ? req.query.severity : null,
       before: before && !Number.isNaN(before.getTime()) ? before : null,
       limit: Math.min(Math.max(Number(req.query.limit) || 30, 1), 100),
-    });
-    return { rollouts: groups };
+    };
+    return { rollouts: await cached(`rollouts:${JSON.stringify(args)}`, () => listReleases(args)) };
   });
 
   app.get("/api/rollouts/:channel/:group", async (req, reply) => {
     const { channel, group } = req.params;
     if (!isTrack(channel) || !GROUP_RE.test(group)) return reply.code(404).send({ error: "not_found" });
-    const detail = await getRelease(channel, group);
+    const detail = await cached(`release:${channel}/${group}`, () => getRelease(channel, group));
     if (!detail) return reply.code(404).send({ error: "not_found" });
     return detail;
   });
 
-  /** Every API type changed by a confirmed rollout: the /reference hub. */
-  app.get("/api/types", async () => ({ types: await listApiTypes() }));
+  /** Every API type changed by a confirmed rollout and the newest change that matters: the /reference hub. */
+  app.get("/api/types", async () =>
+    cached("types", async () => {
+      const [types, latest] = await Promise.all([listApiTypes(), latestNotableChange()]);
+      return { types, latest };
+    }),
+  );
 
   /** One type's change history; `type` in the reply is the canonical spelling (lookup is case-insensitive). */
   app.get("/api/types/:type", async (req, reply) => {
     const { type } = req.params;
     if (type.length > 200 || !TYPE_RE.test(type)) return reply.code(404).send({ error: "not_found" });
-    const detail = await getApiType(type);
+    const detail = await cached(`type:${type}`, () => getApiType(type));
     if (!detail) return reply.code(404).send({ error: "not_found" });
     return detail;
   });
 
   /** Keys and dates of every rollout and API type page; the frontend renders /sitemap.xml from it. */
-  app.get("/api/sitemap", async () => {
-    const [rollouts, types] = await Promise.all([sitemapReleases(), listApiTypes()]);
-    return { rollouts, types: types.map((t) => ({ type: t.type, lastModified: t.lastModified })) };
-  });
+  app.get("/api/sitemap", async () =>
+    cached("sitemap", async () => {
+      const [rollouts, types] = await Promise.all([sitemapReleases(), listApiTypes()]);
+      return { rollouts, types: types.map((t) => ({ type: t.type, lastModified: t.lastModified })) };
+    }),
+  );
 
   app.get("/rss.xml", async (_req, reply) => {
-    reply.type("application/rss+xml; charset=utf-8").send(rssFeed(await listReleases({ limit: 50 }), config.publicUrl));
+    const feed = await cached("rss", async () => rssFeed(await listReleases({ limit: 50 }), config.publicUrl));
+    reply.type("application/rss+xml; charset=utf-8").send(feed);
   });
 
   app.post("/api/subscribe", { bodyLimit: 4096 }, async (req, reply) => {
@@ -289,7 +301,6 @@ export async function buildServer() {
   });
 
   // Live updates (Server-Sent Events): a fresh snapshot whenever a crawl starts or finishes.
-  const live = createLiveFeed();
   app.get("/api/live", (req, reply) => live.handle(req, reply));
   app.addHook("onReady", async () => live.start());
   app.addHook("preClose", async () => live.stop());

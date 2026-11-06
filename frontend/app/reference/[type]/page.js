@@ -11,6 +11,7 @@ import {
   channelState,
   errorMessages,
   fileLabel,
+  loweredText,
   pageDescription,
   pageTitle,
   rolloutHref,
@@ -60,7 +61,7 @@ function jsonLd(t, title, description) {
       about: { "@type": "Thing", name: t.type, isPartOf: officeJs() },
     }),
     breadcrumbs([
-      ["Office.js API changes", "/reference"],
+      ["Office.js API changelog", "/reference"],
       [t.type, typeHref(t.type)],
     ]),
   ];
@@ -85,7 +86,7 @@ export default async function ApiTypePage({ params }) {
       <JsonLd data={jsonLd(t, title, description)} />
       <LiveRefresh />
       <nav className="crumbs" aria-label="Breadcrumb">
-        <Link href="/reference">Office.js API changes</Link>
+        <Link href="/reference">Office.js API changelog</Link>
         <span aria-hidden="true">/</span>
         <Link href={`/reference#${t.namespace.toLowerCase()}`}>{t.namespace}</Link>
       </nav>
@@ -178,6 +179,7 @@ export default async function ApiTypePage({ params }) {
                       <span className={`api-status api-${e.apiStatus ?? "ga"}`}>{apiStatusLabel(e)}</span>
                     )}
                   </div>
+                  {loweredText(e) && <div className="detail">{loweredText(e)}</div>}
                 </div>
                 <div>
                   <Link className="mono" href={rolloutHref(e)}>

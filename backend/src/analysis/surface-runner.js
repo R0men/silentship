@@ -34,6 +34,19 @@ function workerArgs(files, maxOldSpaceMb) {
 }
 
 /**
+ * What a failed worker's stderr says, for the log. Node prints the source line of an uncaught error before the
+ * error itself, and a minified CDN file is one enormous line: keeping the first bytes kept Microsoft's code and
+ * lost the reason. Only short lines stay.
+ */
+export function workerReason(stderr) {
+  const lines = stderr
+    .split(/\r?\n/)
+    .map((l) => l.trimEnd())
+    .filter((l) => l && l.length <= 300 && !/^\s*\^+$/.test(l));
+  return lines.slice(-12).join(" | ").slice(0, 900) || "no readable error";
+}
+
+/**
  * Run surface extraction in a child process with a memory cap and wall-clock timeout.
  * `target` is a script path, or a host file to execute after the loader.
  */
@@ -60,7 +73,7 @@ export function extractSurfaceIsolated(target, { timeoutMs = 90_000, maxOldSpace
       clearTimeout(timer);
       if (code !== 0) {
         const reason = signal ? `killed by ${signal} (timeout ${timeoutMs}ms?)` : `exit code ${code}`;
-        reject(new Error(`surface worker failed: ${reason}: ${Buffer.concat(err).toString().slice(0, 1000)}`));
+        reject(new Error(`surface worker failed: ${reason}: ${workerReason(Buffer.concat(err).toString())}`));
         return;
       }
       try {

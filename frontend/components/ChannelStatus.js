@@ -1,11 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { channelLabel, CHANNELS, ENDPOINTS, fmtDate, groupTitle, pct, shortBuild, STATUS_LABEL } from "@/lib/format";
+import {
+  channelLabel,
+  CHANNELS,
+  endpointProgress,
+  ENDPOINTS,
+  fmtDate,
+  groupTitle,
+  pct,
+  shortBuild,
+  STATUS_LABEL,
+} from "@/lib/format";
 import { useLive } from "./Live";
 import { ShareBar, TimeAgo } from "./ui";
 
-/** "Same build on legacy and onecdn", or which endpoint serves what. */
+/** Nothing in flight: "Same build on legacy and onecdn", or which endpoint serves what. */
 function Endpoints({ endpoints }) {
   const { legacy, onecdn } = endpoints ?? {};
   if (!legacy || !onecdn) return null;
@@ -48,7 +58,7 @@ function Channel({ c }) {
         </span>
       </div>
       <div className="build">{c.build ?? "—"}</div>
-      <Endpoints endpoints={c.endpoints} />
+      {c.active.length === 0 && <Endpoints endpoints={c.endpoints} />}
       <div className="muted channel-meta">
         <TimeAgo date={c.lastCrawlAt} prefix="checked " /> · {c.samples} samples per file
       </div>
@@ -57,14 +67,18 @@ function Channel({ c }) {
           <span>
             {g.toBuild ? (
               <>
-                Rolling out <span className="mono">{g.toBuild}</span>
+                Rolling out{" "}
+                <span className="mono">
+                  {g.fromBuilds.length > 0 && `${shortBuild(g.fromBuilds.at(-1))} → `}
+                  {shortBuild(g.toBuild)}
+                </span>
               </>
             ) : (
               groupTitle(g)
             )}
           </span>
           <span className="muted">
-            <EndpointShares g={g} /> · {g.files} file{g.files === 1 ? "" : "s"}
+            {endpointProgress(g)} · {g.files} file{g.files === 1 ? "" : "s"}
           </span>
           <ShareBar share={g.share} />
         </Link>
@@ -77,25 +91,6 @@ function Channel({ c }) {
         </Link>
       )}
     </div>
-  );
-}
-
-/** "legacy 1% · onecdn 3% of edges", or one share when only one endpoint rolls it out. */
-function EndpointShares({ g }) {
-  const sides = Object.keys(ENDPOINTS)
-    .map((name) => [name, g.endpoints?.[name]])
-    .filter(([, e]) => e && e.status !== "stable");
-  if (sides.length < 2) return <>{pct(g.share)} of edges</>;
-  return (
-    <>
-      {sides.map(([name, e], i) => (
-        <span key={name}>
-          {i > 0 && " · "}
-          {ENDPOINTS[name].label} {pct(e.share)}
-        </span>
-      ))}{" "}
-      of edges
-    </>
   );
 }
 

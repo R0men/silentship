@@ -12,8 +12,16 @@ import { compareBuilds } from "../crawler/build.js";
  * removals are rollouts like any other.
  */
 
-/** Consecutive runs at 100% before a rollout counts as complete (and becomes the new stable version). */
-export const COMPLETE_RUNS = 3;
+/** Consecutive runs at 100% before a rollout can count as complete (and become the new stable version). */
+export const COMPLETE_RUNS = 6;
+/**
+ * Different edges those runs must have reached. All samples of a run can land on a single edge, so three runs at
+ * 100% could mean one edge (16.0.20626: office.js at 63% went complete on 1 edge, 86 of 228 past completions saw
+ * at most 2). Quiet files reach 16 in 6 runs (median), 6 at the 5th percentile.
+ */
+export const COMPLETE_EDGES = 12;
+/** Runs at 100% that complete a rollout whatever the edge count: a small edge pool must not block it forever. */
+export const COMPLETE_MAX_RUNS = 36;
 /** A rollout not seen on any sample for this long is considered pulled back. */
 export const ABANDON_MS = 24 * 3600_000;
 /**
@@ -151,7 +159,7 @@ export function planFile({ state, tally, rollouts, now, bootstrap = false }) {
     const share = v.count / samples;
     const existing = active.get(key);
     if (existing) {
-      updates.push(advance(existing, share, samples, now));
+      updates.push(advance(existing, share, samples, now, v.edges));
       active.delete(key);
     } else if (v.sha !== null && next.retiredShas.includes(v.sha)) {
       stale += v.count;
@@ -187,11 +195,32 @@ export function planFile({ state, tally, rollouts, now, bootstrap = false }) {
   return { state: next, creates, updates: updates.map(({ ref, ...u }) => u), stale };
 }
 
-function advance(rollout, share, samples, now) {
+/**
+ * Enough evidence that every edge has the version: COMPLETE_RUNS at 100% on COMPLETE_EDGES different edges, or
+ * COMPLETE_MAX_RUNS at 100% in any case. A response without an edge id (the CDN dropped the header) cannot be
+ * counted, so without any ids the runs alone decide.
+ */
+export function isComplete(fullRuns, fullEdges) {
+  if (fullRuns < COMPLETE_RUNS) return false;
+  return fullRuns >= COMPLETE_MAX_RUNS || fullEdges.length === 0 || fullEdges.length >= COMPLETE_EDGES;
+}
+
+/**
+ * Is one file's sample summary worth a row? `snapshots` are diagnostics on a size-limited database, and a file
+ * on one version in a quiet run says nothing: keep runs with several versions or errors, files with a rollout in
+ * flight or starting, and a channel's first run.
+ */
+export function keepSnapshot({ variants, errors, rolling, created, bootstrap }) {
+  return bootstrap || created || rolling || errors > 0 || variants > 1;
+}
+
+function advance(rollout, share, samples, now, edges = new Set()) {
   const fullRuns = share >= 1 ? (rollout.fullRuns ?? 0) + 1 : 0;
+  // Capped: nothing needs more, and this is written on every run.
+  const fullEdges = share >= 1 ? [...new Set([...(rollout.fullEdges ?? []), ...edges])].slice(0, COMPLETE_EDGES) : [];
   const zeroSince = share > 0 ? null : (rollout.zeroSince ?? now);
   let status = "rolling";
-  if (fullRuns >= COMPLETE_RUNS) status = "complete";
+  if (isComplete(fullRuns, fullEdges)) status = "complete";
   else if (zeroSince && now - zeroSince >= ABANDON_MS) status = "abandoned";
   return {
     id: rollout._id,
@@ -199,6 +228,7 @@ function advance(rollout, share, samples, now) {
     recentShare: smoothedShare(rollout.history, share),
     samples,
     fullRuns,
+    fullEdges,
     zeroSince,
     status,
     peakShare: Math.max(rollout.peakShare ?? 0, share),

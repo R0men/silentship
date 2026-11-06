@@ -20,12 +20,30 @@ function databaseName(uri) {
   return "silentship";
 }
 
+/** How long per-run sample summaries stay: diagnostics, on a database whose free tier holds 512 MB. */
+export const SNAPSHOT_TTL_SECONDS = 30 * 24 * 3600;
+
+/**
+ * A TTL index at the wanted age. createIndex refuses a different age for an existing index (IndexOptionsConflict,
+ * which would stop the service from starting), so an existing one is changed in place.
+ */
+export async function ensureTtlIndex(collection, field, seconds) {
+  try {
+    await collection.createIndex({ [field]: 1 }, { expireAfterSeconds: seconds });
+  } catch (err) {
+    if (err?.code !== 85) throw err;
+    await collection.db.command({
+      collMod: collection.collectionName,
+      index: { keyPattern: { [field]: 1 }, expireAfterSeconds: seconds },
+    });
+  }
+}
+
 async function ensureIndexes(c) {
   await Promise.all([
     c.runs.createIndex({ channel: 1, region: 1, startedAt: -1 }),
     c.snapshots.createIndex({ channel: 1, region: 1, path: 1, fetchedAt: -1 }),
-    // Per-run sample summaries are diagnostics; keep 90 days.
-    c.snapshots.createIndex({ fetchedAt: 1 }, { expireAfterSeconds: 90 * 24 * 3600 }),
+    ensureTtlIndex(c.snapshots, "fetchedAt", SNAPSHOT_TTL_SECONDS),
     c.fileStates.createIndex({ channel: 1, region: 1, path: 1 }, { unique: true }),
     c.rollouts.createIndex({ channel: 1, region: 1, path: 1, status: 1 }),
     // A backstop for the crawl lock: one rolling rollout per version of a file.
@@ -55,7 +73,8 @@ async function ensureIndexes(c) {
  *  runs        — one crawl of a channel: stable loader build, requests, bytes, rollouts created/completed
  *  fileStates  — per file: the stable version (sha, build, Last-Modified floor) and retired versions
  *  rollouts    — one new version of one file spreading across edges: from/to build, share over time, status
- *  snapshots   — per file per run: how many samples returned each version (TTL 90 days)
+ *  snapshots   — per file per run, only when informative (keepSnapshot): how many samples returned each
+ *                version (TTL 30 days)
  *  apiChanges  — one row per changed API path per rollout (can be thousands per rollout)
  *  subscribers — email, token, channels, minSeverity, embedded `watchItems`
  *  deliveries  — outbox: one rendered alert per recipient (email or Slack), sent and retried by

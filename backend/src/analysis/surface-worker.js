@@ -9,6 +9,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { extractHostSurface, extractSurface } from "./surface.js";
 
+// A script's own async call fails here, where no host answers it (seen with OneCDN's loader: a Rich API request
+// on a Promise nobody catches). The surface is built synchronously and is already complete by then. Left to the
+// default, the rejection ends the process while a large result is still going out on the pipe.
+process.on("unhandledRejection", () => {});
+
 const read = (file) => ({ filename: path.basename(file), source: readFileSync(file, "utf8") });
 
 const args = process.argv.slice(2);

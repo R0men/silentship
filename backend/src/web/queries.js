@@ -248,9 +248,11 @@ function describe(kind, before, after) {
 /** The same Office.* change usually appears in every host file; report it once with the file list. */
 function groupApiChanges(rows) {
   const grouped = new Map();
+  const rowsOf = new Map();
   for (const c of rows) {
     const key = `${c.path}\u0000${c.kind}`;
     const existing = grouped.get(key);
+    rowsOf.set(key, [...(rowsOf.get(key) ?? []), c]);
     if (existing) {
       existing.files.push(c.file);
       if (SEVERITY_RANK[c.severity] > SEVERITY_RANK[existing.severity]) existing.severity = c.severity;
@@ -269,10 +271,29 @@ function groupApiChanges(rows) {
       });
     }
   }
+  for (const [key, g] of grouped) g.lowered = loweredFiles(rowsOf.get(key), g.severity);
   return [...grouped.values()].sort(
     (x, y) => SEVERITY_RANK[y.severity] - SEVERITY_RANK[x.severity] || x.path.localeCompare(y.path),
   );
 }
+
+/**
+ * Files where one change sits below the severity shown for it, because its requirement set is not production
+ * on that file's platform (classify.js). A row shows the highest severity across its files; this says why
+ * some of them are lower.
+ */
+function loweredFiles(rows, severity) {
+  return rows
+    .filter((c) => c.gaOnPlatform === false && SEVERITY_RANK[c.severity] < SEVERITY_RANK[severity])
+    .map((c) => ({ file: c.file, severity: c.severity }));
+}
+
+/** The platform part of a rollout's apiDiffNote ("WordApiDesktop 1.3 is not GA on ios"), the only part shown. */
+const platformNote = (note) =>
+  (note ?? "")
+    .split("; ")
+    .filter((n) => n.includes(" is not GA on "))
+    .join("; ") || null;
 
 /** office.js of a build on a channel: its loader rollout in the group, else the stable loader if on that build. */
 async function loaderOf(channel, group) {
@@ -319,6 +340,7 @@ export async function getGroup(channel, group) {
       peakShare: r.peakShare,
       status: r.status,
       severity: r.severity,
+      severityNote: platformNote(r.apiDiffNote),
       apiChangeCount: r.apiChangeCount,
       firstSeenAt: r.firstSeenAt,
       completedAt: r.completedAt,
@@ -650,10 +672,12 @@ export async function getApiType(type) {
         detail: describe(c.kind, c.before, c.after),
         files: [],
         pulledFiles: [],
+        rows: [],
         lastModified: null,
       };
       events.set(key, e);
     }
+    e.rows.push({ ...c, file: r.path });
     (r.status === "abandoned" ? e.pulledFiles : e.files).push(r.path);
     if (SEVERITY_RANK[c.severity] > SEVERITY_RANK[e.severity]) e.severity = c.severity;
     e.lastModified = latest([e.lastModified, r.lastSeenAt, r.completedAt]);
@@ -662,8 +686,9 @@ export async function getApiType(type) {
 
   // A change whose files were all pulled back did not stick, whatever the rest of its build did.
   const list = [...events.values()]
-    .map(({ groupStatus, ...e }) => ({
+    .map(({ groupStatus, rows: own, ...e }) => ({
       ...e,
+      lowered: loweredFiles(own, e.severity),
       status: e.files.length ? groupStatus : "abandoned",
       files: e.files.sort(),
       pulledFiles: e.pulledFiles.sort(),
@@ -771,6 +796,39 @@ export async function listApiTypes() {
     .sort((a, b) => b.lastSeenAt - a.lastSeenAt || a.type.localeCompare(b.type));
 }
 
+/**
+ * The newest change that matters, for the /reference description: from the newest release that stuck with a
+ * Medium or High API change, its largest set of same-kind changes on one type at the top severity. Numbers
+ * come from getRelease, as on the release page. null when no release qualifies.
+ */
+export async function latestNotableChange() {
+  const releases = await listReleases({ limit: 100 });
+  for (const r of releases) {
+    if (r.status === "abandoned" || !r.toBuild || !r.uniqueApiChanges || r.severity === "low") continue;
+    const { apiChanges } = (await getRelease(r.channel, r.group)) ?? { apiChanges: [] };
+    // High can come from the loader flags alone, so the changes' own severity decides.
+    const severity = apiChanges[0]?.severity;
+    if (!severity || severity === "low") continue;
+    const sets = new Map();
+    for (const c of apiChanges.filter((x) => x.severity === severity)) {
+      const key = `${c.type}\u0000${c.kind}`;
+      sets.set(key, [...(sets.get(key) ?? []), c]);
+    }
+    const top = [...sets.values()].sort((a, b) => b.length - a.length || a[0].type.localeCompare(b[0].type))[0];
+    const only = (values) => (new Set(values).size === 1 ? values[0] : null);
+    return {
+      type: top[0].type,
+      kind: top[0].kind,
+      count: top.length,
+      node: only(top.map((c) => c.detail)),
+      apiSet: only(top.map((c) => c.apiSet)),
+      build: r.toBuild,
+      firstSeenAt: r.firstSeenAt,
+    };
+  }
+  return null;
+}
+
 /** One endpoint's crawl state: its stable loader build and last run. */
 async function endpointState(channel) {
   const { runs, fileStates } = await db();
@@ -789,7 +847,9 @@ async function endpointState(channel) {
 
 /**
  * Per track (production, beta): the stable build and crawl state of both endpoints, releases in flight.
- * The card's build and status follow legacy; `endpoints` says whether OneCDN serves the same build.
+ * The card's status follows legacy. Its build is the one the track settled on: while a release is in flight,
+ * what the oldest such release started from. `endpoints[].build` is only that endpoint's office.js, one file
+ * that can finish long before the host files, so it must not name the endpoint's build during a rollout.
  */
 export async function overview() {
   const channels = [];
@@ -808,7 +868,7 @@ export async function overview() {
     const states = [legacy, onecdn].filter(Boolean);
     channels.push({
       channel: track,
-      build: main.build,
+      build: active.at(-1)?.fromBuilds.at(-1) ?? main.build,
       lastCrawlAt: latest(states.map((e) => e.lastCrawlAt)),
       lastStatus: states.some((e) => e.lastStatus === "failed")
         ? "failed"

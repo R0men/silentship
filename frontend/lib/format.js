@@ -117,6 +117,44 @@ const KIND_PHRASE = {
   bodyChanged: "with a changed implementation",
 };
 
+/**
+ * A release in flight on a channel card, per endpoint, from the same numbers as its share. A build is named
+ * only where an endpoint is settled on it (complete, or not started): "legacy 44% · onecdn 51% of edges", or
+ * "legacy 16.0.20626 (complete) · onecdn rolling out, 51%".
+ */
+export function endpointProgress(g) {
+  const sides = Object.keys(ENDPOINTS)
+    .filter((name) => g.onecdnCrawled || g.endpoints?.[name])
+    .map((name) => [ENDPOINTS[name].label, g.endpoints?.[name]]);
+  if (sides.length < 2) return `${pct(g.share)} of edges`;
+  if (sides.every(([, e]) => e?.status === "rolling")) {
+    return `${sides.map(([label, e]) => `${label} ${pct(e.share)}`).join(" · ")} of edges`;
+  }
+  const from = shortBuild(g.fromBuilds?.at(-1));
+  return sides
+    .map(([label, e]) => {
+      if (e?.status === "rolling") return `${label} rolling out, ${pct(e.share)}`;
+      if (e?.status === "complete" || e?.status === "stable") return `${label} ${shortBuild(groupTitle(g))} (complete)`;
+      if (e?.status === "abandoned") return `${label} pulled back`;
+      return from ? `${label} ${from} (not started)` : `${label} not started`;
+    })
+    .join(" · ");
+}
+
+const NODE_PLURAL = { property: "properties", function: "functions", class: "classes", enum: "enums", namespace: "namespaces" };
+
+/**
+ * The newest change that matters, for the /reference description (latestNotableChange in the backend):
+ * "Latest: Word.LineFormat lost 8 WordApiDesktop 1.3 properties in 16.0.20619 (Oct 2026)."
+ */
+export function latestChangeText(c) {
+  const noun = c.count === 1 ? (c.node ?? "member") : (NODE_PLURAL[c.node] ?? "members");
+  const what = [c.count, c.apiSet, noun].filter(Boolean).join(" ");
+  const change = c.kind === "removed" ? `${c.type} lost ${what}` : `${c.type}: ${what} ${KIND_PHRASE[c.kind] ?? c.kind}`;
+  const month = new Date(c.firstSeenAt).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
+  return `Latest: ${change} in ${shortBuild(c.build)} (${month}).`;
+}
+
 /** Up to `limit` of the most important high-severity changes, per type and kind: "Word.LineFormat: 8 members removed". */
 export function highlights(apiChanges, limit = 3) {
   const by = new Map();

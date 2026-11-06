@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { ABANDON_MS, COMPLETE_RUNS, isNewer, planFile, tallySamples } from "../src/pipeline/rollouts.js";
+import {
+  ABANDON_MS,
+  COMPLETE_EDGES,
+  COMPLETE_MAX_RUNS,
+  COMPLETE_RUNS,
+  isComplete,
+  isNewer,
+  keepSnapshot,
+  planFile,
+  tallySamples,
+} from "../src/pipeline/rollouts.js";
 import { compareBuilds, extractBuild } from "../src/crawler/build.js";
 
 const OLD = { sha: "old", build: "16.0.20528.15060", lastModified: "Fri, 09 Oct 2026 00:18:42 GMT" };
@@ -106,11 +116,61 @@ describe("planFile", () => {
     expect(updates[0]).toMatchObject({ id: "r1", share: 0.75, peakShare: 0.75, status: "rolling" });
   });
 
-  it(`completes after ${COMPLETE_RUNS} runs at 100% and promotes the new version`, () => {
-    const rollout = { _id: "r1", toSha: "new", toBuild: NEW.build, toLastModified: NEW.lastModified, fullRuns: COMPLETE_RUNS - 1 };
-    const { updates, state } = run(stableState, [ok(NEW), ok(NEW)], [rollout]);
-    expect(updates[0]).toMatchObject({ status: "complete", completedAt: now });
-    expect(state).toMatchObject({ stableSha: "new", stableBuild: NEW.build, retiredShas: ["old"] });
+  describe("completion needs different edges, not only runs", () => {
+    const edges = (n) => Array.from({ length: n }, (_, i) => `10.0.0.${i}`);
+    const rollout = (fullRuns, fullEdges) => ({
+      _id: "r1",
+      toSha: "new",
+      toBuild: NEW.build,
+      toLastModified: NEW.lastModified,
+      fullRuns,
+      fullEdges,
+    });
+
+    it(`completes after ${COMPLETE_RUNS} runs at 100% on ${COMPLETE_EDGES} edges and promotes the new version`, () => {
+      const { updates, state } = run(stableState, [ok(NEW, "10.0.0.11"), ok(NEW, "10.0.0.11")], [rollout(COMPLETE_RUNS - 1, edges(11))]);
+      expect(updates[0]).toMatchObject({ status: "complete", completedAt: now, fullRuns: COMPLETE_RUNS });
+      expect(state).toMatchObject({ stableSha: "new", stableBuild: NEW.build, retiredShas: ["old"] });
+    });
+
+    it("does not complete on one edge, however many samples agree (16.0.20626 office.js)", () => {
+      const { updates, state } = run(stableState, Array(8).fill(ok(NEW, "10.0.0.1")), [rollout(COMPLETE_RUNS - 1, ["10.0.0.1"])]);
+      expect(updates[0]).toMatchObject({ status: "rolling", fullRuns: COMPLETE_RUNS, fullEdges: ["10.0.0.1"] });
+      expect(state.stableSha).toBe("old");
+    });
+
+    it("does not complete before enough runs, however many edges", () => {
+      const { updates } = run(stableState, [ok(NEW, "10.0.0.20")], [rollout(COMPLETE_RUNS - 2, edges(30))]);
+      expect(updates[0].status).toBe("rolling");
+    });
+
+    it("starts counting edges again after an old edge answers", () => {
+      const { updates } = run(stableState, [notModified, ok(NEW)], [rollout(5, edges(11))]);
+      expect(updates[0]).toMatchObject({ status: "rolling", fullRuns: 0, fullEdges: [] });
+    });
+
+    it("does not let a small edge pool block completion forever", () => {
+      const { updates } = run(stableState, [ok(NEW, "10.0.0.1")], [rollout(COMPLETE_MAX_RUNS - 1, ["10.0.0.1"])]);
+      expect(updates[0].status).toBe("complete");
+    });
+
+    it("falls back to runs alone when responses carry no edge id", () => {
+      expect(isComplete(COMPLETE_RUNS, [])).toBe(true);
+      expect(isComplete(COMPLETE_RUNS - 1, [])).toBe(false);
+    });
+
+    it("never touches what decides alerts: completing cannot queue an email", () => {
+      const { updates } = run(stableState, [ok(NEW, "10.0.0.11")], [rollout(COMPLETE_RUNS - 1, edges(11))]);
+      expect(Object.keys(updates[0]).filter((k) => /notified/i.test(k))).toEqual([]);
+    });
+  });
+
+  describe("keepSnapshot", () => {
+    const quiet = { variants: 1, errors: 0, rolling: false, created: false, bootstrap: false };
+    it("drops a quiet file", () => expect(keepSnapshot(quiet)).toBe(false));
+    it.each([["variants", 2], ["errors", 1], ["rolling", true], ["created", true], ["bootstrap", true]])("keeps one with %s", (k, v) => {
+      expect(keepSnapshot({ ...quiet, [k]: v })).toBe(true);
+    });
   });
 
   it("treats an older build from a lagging edge as stale, not a rollout", () => {

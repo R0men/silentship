@@ -18,7 +18,10 @@ Code: pure functions `tallySamples` and `planFile` in `backend/src/pipeline/roll
 - A new sha **newer** than the stable one (build first, then `Last-Modified`) → a new rollout, archiving,
   API diff.
 - An older or already retired (`retiredShas`) sha → a stale edge: counted as `stale`, no rollout is created.
-- 100% in `COMPLETE_RUNS` (3) runs in a row → `complete`: the new version becomes stable, the old one goes
+- 100% in `COMPLETE_RUNS` (6) runs in a row on at least `COMPLETE_EDGES` (12) different edges, or in
+  `COMPLETE_MAX_RUNS` (36) runs in a row whatever the edge count → `complete`. All samples of a run can land on one
+  edge, so runs alone prove little: under the earlier rule (3 runs) 218 of 228 completions had seen fewer than 8
+  edges. Without any edge ids in the responses the runs alone decide. The new version becomes stable, the old one goes
   to `retiredShas`.
 - No sample for `ABANDON_MS` (24 h) → `abandoned` (pulled back). If the version returns within 30 days
   (`REVIVE_WINDOW_MS` in `run.js`), the rollout is revived.

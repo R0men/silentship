@@ -9,7 +9,7 @@ import { diffReflections, maxSeverity } from "../analysis/diff.js";
 import { postProcess, rolloutNote } from "../analysis/classify.js";
 import { extractSurfaceIsolated } from "../analysis/surface-runner.js";
 import { db } from "../db.js";
-import { HISTORY_LIMIT, planFile, tallySamples } from "./rollouts.js";
+import { HISTORY_LIMIT, keepSnapshot, planFile, SMOOTHING_RUNS, tallySamples } from "./rollouts.js";
 
 const log = (channel, msg) => console.log(`[${new Date().toISOString()}] [${channel}] ${msg}`);
 
@@ -68,6 +68,9 @@ async function loadActiveRollouts(channel, region) {
         { status: "abandoned", lastSeenAt: { $gte: new Date(Date.now() - REVIVE_WINDOW_MS) } },
       ],
     })
+    // Only the runs the smoothed share needs: a full history is ~14 KB per rollout, on every run of every
+    // channel, and the free database tier limits traffic.
+    .project({ history: { $slice: -SMOOTHING_RUNS } })
     .toArray();
   const byPath = new Map();
   for (const r of rows) byPath.set(r.path, [...(byPath.get(r.path) ?? []), r]);
@@ -124,7 +127,8 @@ async function analyzeRollout(archive, channel, entry, create, loaderSha) {
     };
   } catch (err) {
     log(channel, `API diff failed for ${entry.path}: ${String(err)}`);
-    return { severity: "low", apiChanges: [] };
+    // Low is only "nothing known": the note keeps it from reading as "this build changes nothing".
+    return { severity: "low", apiChanges: [], note: "API diff failed; changes in this file are unknown" };
   }
 }
 
@@ -273,6 +277,7 @@ export async function runChannel(channel, archive) {
         peakShare: c.share,
         samples: c.samples,
         fullRuns: c.share >= 1 ? 1 : 0,
+        fullEdges: c.share >= 1 ? c.edges : [],
         zeroSince: null,
         history: [{ at: now, share: c.share }],
         edges: c.edges,
@@ -350,19 +355,28 @@ export async function runChannel(channel, archive) {
       const variants = [...tally.variants.values()].sort((a, b) => b.count - a.count);
       const bytes = results.reduce((n, r) => n + (r.wireBytes ?? 0), 0);
       wireBytes += bytes;
-      snapshotDocs.push({
-        runId,
-        channel,
-        region,
-        path: entry.path,
-        fetchedAt: now,
-        samples: tally.samples,
+      const worthKeeping = keepSnapshot({
+        variants: variants.length,
         errors: tally.errors,
-        build: variants.find((v) => v.sha !== null)?.build ?? null,
-        variants: variants.map((v) => ({ sha: v.sha, build: v.build, count: v.count, lastModified: v.lastModified })),
-        edges: [...new Set(results.map((r) => r.edgeIp).filter(Boolean))],
-        wireBytes: bytes,
+        rolling: (activeByPath.get(entry.path) ?? []).some((r) => r.status === "rolling"),
+        created: plan.creates.length > 0,
+        bootstrap,
       });
+      if (worthKeeping) {
+        snapshotDocs.push({
+          runId,
+          channel,
+          region,
+          path: entry.path,
+          fetchedAt: now,
+          samples: tally.samples,
+          errors: tally.errors,
+          build: variants.find((v) => v.sha !== null)?.build ?? null,
+          variants: variants.map((v) => ({ sha: v.sha, build: v.build, count: v.count, lastModified: v.lastModified })),
+          edges: [...new Set(results.map((r) => r.edgeIp).filter(Boolean))],
+          wireBytes: bytes,
+        });
+      }
     }
     if (snapshotDocs.length) await snapshots.insertMany(snapshotDocs);
 

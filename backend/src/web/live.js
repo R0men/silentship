@@ -29,7 +29,8 @@ const contentOf = (s) => JSON.stringify({ overview: s.overview, rollouts: s.roll
 
 export function createLiveFeed({
   pollMs = 5_000,
-  maxAgeMs = 60_000,
+  // A rebuild is dozens of queries and the data changes with crawls, which the poll already sees.
+  maxAgeMs = 5 * 60_000,
   build = homeSnapshot,
   runKey = latestRunKey,
   now = Date.now,
@@ -118,6 +119,10 @@ export function createLiveFeed({
     check,
     get snapshot() {
       return snapshot;
+    },
+    /** Changes with every rebuild; null before the first. What cached read models are valid for. */
+    get version() {
+      return snapshot ? `${lastKey}:${builtAt}` : null;
     },
     get size() {
       return clients.size;
