@@ -4,17 +4,20 @@ seoTitle: New Office.js CDN endpoint vs. appsforoffice: what changes
 description: officeapis.public.onecdn.static.microsoft serves the same Office.js as appsforoffice.microsoft.com, but its loader drops MicrosoftAjax and turns on Trusted Types.
 keywords: Office.js CDN, officeapis.public.onecdn.static.microsoft, appsforoffice.microsoft.com, MicrosoftAjax, Trusted Types, Office.actions.associate, isOsfSecurityDefaultsEnabled, Office add-ins
 date: 2026-10-20
-checked: 19 Oct 2026, build 16.0.20606.15070
+updated: 2026-11-21
+checked: 21 Nov 2026, build 16.0.20710.15050
 ---
 
-Since late September, Microsoft's docs list `appsforoffice.microsoft.com` as a **legacy** endpoint and recommend a new one:
+> **Update, 21 Nov 2026.** On 19 Nov Microsoft [reverted its docs](https://github.com/OfficeDev/office-js-docs-pr/pull/5930) to `appsforoffice.microsoft.com` everywhere and removed every mention of the new endpoint and of the migration steps. No reason was given. The endpoint itself did not change: on build 16.0.20710.15050 it still serves byte-identical host files and the same `office.js` with the two security-default lines below. If you moved to it, your add-in keeps working as before; it is now on a URL the docs no longer mention. silentship keeps watching both.
+
+From September to November 2026, Microsoft's docs listed `appsforoffice.microsoft.com` as a **legacy** endpoint and recommended a new one:
 
 | | Legacy | New |
 |---|---|---|
 | Release | `appsforoffice.microsoft.com/lib/1/hosted/office.js` | `officeapis.public.onecdn.static.microsoft/1/office.js` |
 | Preview | `appsforoffice.microsoft.com/lib/beta/hosted/office.js` | `officeapis.public.onecdn.static.microsoft/beta/office.js` |
 
-The docs say the new endpoint "serves the same current Office.js release, but it enables additional secure defaults", without saying which defaults. So we compared the two directly.
+The docs said the new endpoint "serves the same current Office.js release, but it enables additional secure defaults", without saying which defaults. So we compared the two directly.
 
 ## Short answer
 
@@ -61,7 +64,7 @@ grep -rnE '\bSys\.|Type\.registerNamespace|Function\.createDelegate|\$create\(' 
 
 ## Trying the new defaults on the legacy URL
 
-Since the two endpoints differ only by those two lines at the top of the loader, you can set the same globals yourself right before the legacy `office.js`:
+Since the two endpoints differ only by those two lines at the top of the loader, you can set the same globals yourself right before the `appsforoffice` `office.js`:
 
 ```html
 <script>
@@ -85,4 +88,4 @@ Today the only difference between the endpoints is two flags in one file. Nothin
 
 ---
 
-*Checked on 19 Oct 2026 against build 16.0.20606.15070. Microsoft's page: [Referencing the Office JavaScript API library from its CDN](https://learn.microsoft.com/en-us/office/dev/add-ins/develop/referencing-the-javascript-api-for-office-library-from-its-cdn). Thanks to the commenter on [office-js#6513](https://github.com/OfficeDev/office-js/issues/6513) who pointed out the new endpoint.*
+*First checked on 19 Oct 2026 against build 16.0.20606.15070; the endpoint differences rechecked on 21 Nov 2026 against 16.0.20710.15050. Microsoft's page (which no longer mentions the new endpoint): [Referencing the Office JavaScript API library from its CDN](https://learn.microsoft.com/en-us/office/dev/add-ins/develop/referencing-the-javascript-api-for-office-library-from-its-cdn). Thanks to the commenter on [office-js#6513](https://github.com/OfficeDev/office-js/issues/6513) who pointed out the new endpoint.*

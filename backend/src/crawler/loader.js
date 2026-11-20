@@ -128,19 +128,25 @@ export function bodyHashSansFlags(source) {
   return createHash("sha256").update(source.replace(FLAG_STATEMENTS, "")).digest("hex");
 }
 
-/** Microsoft's page on the CDN endpoints, including what the OneCDN security defaults change. */
-export const MS_CDN_DOCS =
-  "https://learn.microsoft.com/en-us/office/dev/add-ins/develop/referencing-the-javascript-api-for-office-library-from-its-cdn";
+/**
+ * Our note on what the two endpoints' loaders differ in and who can break. Microsoft's own page no longer
+ * mentions the OneCDN endpoint: its docs moved there in September 2026 and back in November 2026
+ * (OfficeDev/office-js-docs-pr#5930), while the endpoint and its security defaults stayed.
+ */
+export const ENDPOINTS_NOTE_PATH = "/notes/new-office-js-cdn-endpoint";
 
 const flagText = (v) => (v === null || v === undefined ? "unset" : String(v));
 
-/** The loader-flags-changed sentence for alerts and the rollout page. */
-export function flagsChangeNotice(channel, from, to) {
+/**
+ * The loader-flags-changed sentence for alerts and the rollout page. With `publicUrl` (alerts) it ends with
+ * a link to the endpoints note; the rollout page links the note itself.
+ */
+export function flagsChangeNotice(channel, from, to, publicUrl = null) {
   return (
     `Office.js loader on ${channel} changed security defaults: ` +
     `isOsfSecurityDefaultsEnabled ${flagText(from?.securityDefaults)}→${flagText(to?.securityDefaults)}, ` +
     `osfLoadMsAjax ${flagText(from?.loadMsAjax)}→${flagText(to?.loadMsAjax)}. ` +
-    `Add-ins relying on MicrosoftAjax (Sys.*, Type.registerNamespace) or on implicit command registration may break. ` +
-    `See Microsoft's migration notes: ${MS_CDN_DOCS}`
+    `Add-ins relying on MicrosoftAjax (Sys.*, Type.registerNamespace) or on implicit command registration may break.` +
+    (publicUrl ? ` What the flags do and who can break: ${publicUrl}${ENDPOINTS_NOTE_PATH}` : "")
   );
 }

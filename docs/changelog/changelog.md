@@ -25,6 +25,10 @@
 
 ## History
 
+- **2026-11-21** — [2026-11-21.md](2026-11-21.md)
+  - `[Bug Fix]` Microsoft's docs went back to appsforoffice: OneCDN is no longer called recommended, the loader-flags notice links our endpoints note
+  - `[Feature]` Notes show when they were updated
+
 - **2026-11-20** — [2026-11-20.md](2026-11-20.md)
   - `[Bug Fix]` A generated `set`/`toJSON` that changed with a new or removed member is Low
   - `[Bug Fix]` Documented APIs reached through an object (`Office.ribbon`, `Office.context.*`) are no longer undocumented

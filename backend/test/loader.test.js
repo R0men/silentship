@@ -118,4 +118,12 @@ describe("loader security-default flags", () => {
       flagsChangeNotice("prod", loaderFlags(LEGACY), loaderFlags(ONECDN)),
     ).toMatch(/^Office\.js loader on prod changed security defaults: isOsfSecurityDefaultsEnabled unset→true, osfLoadMsAjax unset→false\. /);
   });
+
+  it("links the endpoints note in alerts and leaves the link to the rollout page", () => {
+    const [from, to] = [loaderFlags(LEGACY), loaderFlags(ONECDN)];
+    expect(flagsChangeNotice("prod", from, to, "https://example.test")).toMatch(
+      / may break\. What the flags do and who can break: https:\/\/example\.test\/notes\/new-office-js-cdn-endpoint$/,
+    );
+    expect(flagsChangeNotice("prod", from, to)).toMatch(/ may break\.$/);
+  });
 });

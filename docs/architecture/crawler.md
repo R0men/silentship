@@ -9,9 +9,9 @@ Code: `backend/src/crawler/{loader,manifest,fetcher,build}.js`; orchestration â€
 
   | Channel | Base URL | Endpoint |
   |---|---|---|
-  | `prod` | `https://appsforoffice.microsoft.com/lib/1/hosted/` | legacy |
-  | `beta` | `https://appsforoffice.microsoft.com/lib/beta/hosted/` | legacy |
-  | `onecdn-prod` | `https://officeapis.public.onecdn.static.microsoft/1/` | OneCDN, recommended by Microsoft since 2026-09 |
+  | `prod` | `https://appsforoffice.microsoft.com/lib/1/hosted/` | appsforoffice (`legacy` in code) |
+  | `beta` | `https://appsforoffice.microsoft.com/lib/beta/hosted/` | appsforoffice (`legacy` in code) |
+  | `onecdn-prod` | `https://officeapis.public.onecdn.static.microsoft/1/` | OneCDN (recommended by Microsoft's docs 2026-09 â†’ 2026-11) |
   | `onecdn-beta` | `https://officeapis.public.onecdn.static.microsoft/beta/` | OneCDN |
 
   The loader takes its base path from its own `<script src>`, so an add-in on the OneCDN address loads every

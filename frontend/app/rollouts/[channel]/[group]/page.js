@@ -54,13 +54,11 @@ function jsonLd(r) {
   ];
 }
 
-/** loader-flags-changed: the notice up to the docs reference, which becomes a link. */
+/** loader-flags-changed: the notice and a link to the endpoints note. */
 function FlagsNotice({ flags }) {
-  const [text] = flags.notice.split(" See Microsoft's");
   return (
     <p className="flags-notice">
-      {text} <a href={flags.docs}>Microsoft&apos;s migration notes</a> ·{" "}
-      <Link href={ENDPOINTS_NOTE}>what the flags do and who can break</Link>
+      {flags.notice} <Link href={ENDPOINTS_NOTE}>What the flags do and who can break</Link>
     </p>
   );
 }
@@ -127,7 +125,7 @@ const SHARES_HINT =
 function EndpointFiles({ r }) {
   if (!r.onecdnCrawled) return null;
   if (!r.endpoints.legacy || !r.endpoints.onecdn) {
-    return <p className="note">Seen on {r.endpoints.legacy ? "legacy" : "onecdn"} only so far.</p>;
+    return <p className="note">Seen on {ENDPOINTS[r.endpoints.legacy ? "legacy" : "onecdn"].label} only so far.</p>;
   }
   const late = Object.keys(ENDPOINTS).filter((e) => r.notYetOn?.[e]?.length);
   return (

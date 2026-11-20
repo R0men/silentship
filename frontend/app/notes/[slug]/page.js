@@ -60,6 +60,12 @@ export default async function Note({ params }) {
       <h1>{note.title}</h1>
       <p className="muted">
         <time dateTime={note.date}>{fmtDay(note.date)}</time>
+        {note.updated && note.updated !== note.date && (
+          <>
+            {" "}
+            · updated <time dateTime={note.updated}>{fmtDay(note.updated)}</time>
+          </>
+        )}
         {note.checked && <span className="faint"> · checked {note.checked}</span>}
       </p>
       <div dangerouslySetInnerHTML={{ __html: note.before }} />

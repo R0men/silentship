@@ -19,7 +19,7 @@ export const metadata = {
     path: "/",
     title: TITLE,
     description:
-      "Live changelog of Office.js on both CDN endpoints, legacy appsforoffice.microsoft.com and officeapis.public.onecdn.static.microsoft: new builds, their share of edges, changed host files and API-surface diffs.",
+      "Live changelog of Office.js on both CDN endpoints, appsforoffice.microsoft.com and officeapis.public.onecdn.static.microsoft: new builds, their share of edges, changed host files and API-surface diffs.",
   }),
   title: { absolute: TITLE },
 };

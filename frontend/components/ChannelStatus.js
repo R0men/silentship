@@ -15,7 +15,7 @@ import {
 import { useLive } from "./Live";
 import { ShareBar, TimeAgo } from "./ui";
 
-/** Nothing in flight: "Same build on legacy and onecdn", or which endpoint serves what. */
+/** Nothing in flight: "Same build on appsforoffice and onecdn", or which endpoint serves what. */
 function Endpoints({ endpoints }) {
   const { legacy, onecdn } = endpoints ?? {};
   if (!legacy || !onecdn) return null;

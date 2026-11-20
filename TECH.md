@@ -69,8 +69,10 @@ The loader picks the host file from `_host_Info` (from `window.external.GetHostI
    requested `SAMPLES` times on fresh connections, and a change is a **rollout** with a share of edges, not
    a single "changed" event.
 7. **The beta channel** is watched in parallel: beta changes often precede production.
-7a. **Two endpoints.** Since September 2026 Microsoft recommends `officeapis.public.onecdn.static.microsoft`
-   and calls `appsforoffice.microsoft.com` legacy. Both are crawled (four channels, legacy first). Host files
+7a. **Two endpoints.** From September to November 2026 Microsoft's docs recommended
+   `officeapis.public.onecdn.static.microsoft` and called `appsforoffice.microsoft.com` legacy; on 2026-11-19
+   they went back to `appsforoffice` (OfficeDev/office-js-docs-pr#5930), while OneCDN kept serving with its
+   own defaults. Add-ins that moved stay on it, so both are crawled (four channels, legacy first). Host files
    are identical; only `office.js` differs by two security-default flags (`isOsfSecurityDefaultsEnabled`,
    `osfLoadMsAjax`), which the crawler reads from every loader. A channel's first run is a baseline, not a
    release. One build on both endpoints is alerted once (email and Slack), from legacy; OneCDN alerts only

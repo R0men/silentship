@@ -254,7 +254,7 @@ async function groupContext(channel, group, rollouts) {
     changes,
     severity,
     flagsChanged: Boolean(flagged),
-    notice: flagged ? flagsChangeNotice(channel, flagged.fromFlags, flagged.toFlags) : null,
+    notice: flagged ? flagsChangeNotice(channel, flagged.fromFlags, flagged.toFlags, config.publicUrl) : null,
     toBuild,
     fromBuilds,
     share,

@@ -6,8 +6,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Live](https://img.shields.io/badge/live-silentship.dev-black)](https://silentship.dev)
 
-Office add-ins load Office.js from `appsforoffice.microsoft.com/lib/1/hosted/office.js` (or, as Microsoft now
-recommends, `officeapis.public.onecdn.static.microsoft/1/office.js`). The URL never changes, but the code
+Office add-ins load Office.js from `appsforoffice.microsoft.com/lib/1/hosted/office.js` (or from
+`officeapis.public.onecdn.static.microsoft/1/office.js`, which Microsoft's docs recommended from September to
+November 2026). The URL never changes, but the code
 behind it does — with no version, no changelog and no SRI hash. When an add-in breaks overnight, nobody can
 tell whether it was their release or Microsoft's.
 

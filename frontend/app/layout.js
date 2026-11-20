@@ -64,7 +64,7 @@ export default function RootLayout({ children }) {
             <footer className="footer">
               <p>
                 Watches the JavaScript layer served from both endpoints: <span className="mono">appsforoffice.microsoft.com</span>{" "}
-                (legacy) and <span className="mono">officeapis.public.onecdn.static.microsoft</span>. Breakages inside
+                and <span className="mono">officeapis.public.onecdn.static.microsoft</span>. Breakages inside
                 native hosts (Outlook, Excel win32, …) are not visible here.
               </p>
               <p>Not affiliated with Microsoft. Metadata and API-surface diffs only — no Microsoft code.</p>

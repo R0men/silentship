@@ -60,7 +60,8 @@ export const STATUS_LABEL = { rolling: "Rolling out", complete: "Complete", aban
 
 /**
  * Tracks the site shows: production and beta. Each is served by two endpoints with byte-identical host
- * files — the legacy appsforoffice.microsoft.com and Microsoft's recommended OneCDN — shown side by side.
+ * files — appsforoffice.microsoft.com and OneCDN (officeapis.public.onecdn.static.microsoft) — shown side by side.
+ * The `legacy` key is internal; the site labels the endpoint by its host.
  */
 export const CHANNELS = {
   prod: { label: "Production", where: "/lib/1/hosted" },
@@ -68,7 +69,7 @@ export const CHANNELS = {
 };
 
 export const ENDPOINTS = {
-  legacy: { label: "legacy", host: "appsforoffice.microsoft.com" },
+  legacy: { label: "appsforoffice", host: "appsforoffice.microsoft.com" },
   onecdn: { label: "onecdn", host: "officeapis.public.onecdn.static.microsoft" },
 };
 
@@ -78,7 +79,7 @@ export const ENDPOINTS = {
  */
 export function divergence(r) {
   if (!r.diverged) return null;
-  // The flags first: on legacy they stop loading MicrosoftAjax, whatever else differs.
+  // The flags first: on appsforoffice they would stop loading MicrosoftAjax, whatever else differs.
   if (r.flagsChanged) return "loader flags changed";
   if (r.differentFiles?.length) return r.differentFiles.length === 1 ? "1 file differs" : `${r.differentFiles.length} files differ`;
   return "endpoints differ";
@@ -125,8 +126,8 @@ const KIND_PHRASE = {
 
 /**
  * A release in flight on a channel card, per endpoint, from the same numbers as its share. A build is named
- * only where an endpoint is settled on it (complete, or not started): "legacy 44% · onecdn 51% of edges", or
- * "legacy 16.0.20626 (complete) · onecdn rolling out, 51%".
+ * only where an endpoint is settled on it (complete, or not started): "appsforoffice 44% · onecdn 51% of edges", or
+ * "appsforoffice 16.0.20626 (complete) · onecdn rolling out, 51%".
  */
 export function endpointProgress(g) {
   const sides = Object.keys(ENDPOINTS)

@@ -10,7 +10,8 @@ dotenv.config({ path: path.join(ROOT, ".env"), quiet: true });
 export const CHANNEL_BASE_URL = {
   prod: "https://appsforoffice.microsoft.com/lib/1/hosted/",
   beta: "https://appsforoffice.microsoft.com/lib/beta/hosted/",
-  // Microsoft's recommended endpoint since September 2026 (the one above is "legacy" in its docs). The loader
+  // OneCDN: Microsoft's docs recommended it from September to November 2026, then went back to the one above
+  // (OfficeDev/office-js-docs-pr#5930); it still serves the same builds with its own security defaults. The loader
   // takes its base path from its own <script src>, so add-ins on it load every host file from here too.
   "onecdn-prod": "https://officeapis.public.onecdn.static.microsoft/1/",
   "onecdn-beta": "https://officeapis.public.onecdn.static.microsoft/beta/",

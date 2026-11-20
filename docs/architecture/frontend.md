@@ -10,7 +10,7 @@ Code: `frontend/` — Next.js 16 (App Router, Turbopack), React 19, JavaScript. 
 | Route | File | Rendering |
 |---|---|---|
 | `/` | `app/page.js` — headline with live numbers, subscribe form, channel status, rollout feed, the 3 newest notes (`components/LatestNotes.js`); all from one `/api/home` snapshot, then `/api/live` | SSR on every request (`force-dynamic`) |
-| `/rollouts/[channel]/[group]` | `app/rollouts/[channel]/[group]/page.js` — one release of a track (`prod`, `beta`): a progress bar per endpoint (legacy, onecdn) with share and completion time, facts, one file table, "Host files byte-identical on both endpoints" or the files of this build that differ, files "not yet on" an endpoint still on an older build, the `loader-flags-changed` notice only when the flags changed. `/rollouts/onecdn-prod/*` and `/rollouts/onecdn-beta/*` → 301 to the track's page (`redirects` in `next.config.mjs`) | SSR on every request |
+| `/rollouts/[channel]/[group]` | `app/rollouts/[channel]/[group]/page.js` — one release of a track (`prod`, `beta`): a progress bar per endpoint (appsforoffice, onecdn; `legacy`/`onecdn` in the data) with share and completion time, facts, one file table, "Host files byte-identical on both endpoints" or the files of this build that differ, files "not yet on" an endpoint still on an older build, the `loader-flags-changed` notice only when the flags changed. `/rollouts/onecdn-prod/*` and `/rollouts/onecdn-beta/*` → 301 to the track's page (`redirects` in `next.config.mjs`) | SSR on every request |
 | `/reference` | `app/reference/page.js` — hub by build, newest first: the types each build changed, with their severity in that build; every change by default, "Documented only" as a filter (`components/HubFilter.js`, CSS only, every row stays in the HTML); the latest 4 builds open, older ones in one `<details>`; "new" on types first changed in the last 7 days; an A–Z index of every changed type at the end. Data: `builds` per type from `/api/types` | SSR on every request |
 | `/settings` | `app/settings/page.js`, `components/Settings.js` — a subscriber's channels, minimum severity and watchlist; token from `#token=…` ([`alerts.md`](alerts.md)). `noindex`, not in the sitemap | static at build time |
 | `/reference/[type]` | `app/reference/[type]/page.js` — one API type: state per channel, advice, change history, related types; wording in `lib/apiType.js` ([`seo.md`](seo.md)) | SSR on every request |
@@ -22,7 +22,7 @@ Code: `frontend/` — Next.js 16 (App Router, Turbopack), React 19, JavaScript. 
 **One UI for both endpoints.** The crawler has four channels, but the site shows two tracks — production and
 beta (`CHANNELS` in `lib/format.js`) — because the legacy and OneCDN endpoints serve byte-identical host files
 (`ENDPOINTS`: `appsforoffice.microsoft.com`, `officeapis.public.onecdn.static.microsoft`). The home page has two
-cards. With nothing in flight, the card's build is the stable one, then "Same build on legacy and onecdn" or each
+cards. With nothing in flight, the card's build is the stable one, then "Same build on appsforoffice and onecdn" or each
 endpoint's build, and the newest release with how it ended ("Complete 16.0.20606.15070", completion time, a full
 bar). With a release in flight, the build is the one the track settled on (what the oldest such release started
 from), with a share bar per release. The list has one row per
@@ -30,9 +30,9 @@ track and build; a row carries an endpoint badge (`divergence`: "N files differ"
 when the endpoints diverge on the same build, and a neutral "not yet on onecdn" (`notYetOn`) while one endpoint
 still serves files on an older build. API counts everywhere are unique changes first, files second
 (`apiChangesText`: "5 API changes in 19 files"). There is no endpoint filter. A card with a release in flight
-shows "Rolling out 16.0.20619 → 16.0.20626", its progress per endpoint (`endpointProgress`: "legacy 44% · onecdn
+shows "Rolling out 16.0.20619 → 16.0.20626", its progress per endpoint (`endpointProgress`: "appsforoffice 44% · onecdn
 51% of edges") and under it "previous: 16.0.20612 complete" (`overview.previous`). A build is named per endpoint
-only where it is settled ("legacy 16.0.20626 (complete) · onecdn rolling out, 51%"): `endpoints[].build` is one
+only where it is settled ("appsforoffice 16.0.20626 (complete) · onecdn rolling out, 51%"): `endpoints[].build` is one
 file, `office.js`, and can finish long before the host files, so it never names an endpoint's build mid-rollout.
 
 A change lowered on some platforms keeps the highest severity on its row, with the reason under it (`loweredText`:
@@ -45,14 +45,14 @@ undocumented APIs / no breaking changes to documented APIs / "Documented API cha
 with up to three biggest groups ("Word.LineFormat: 8 members removed"). Then "Get email alerts →" (the home
 form, `/#subscribe`) and "Write-up →" for a note whose front matter lists the build in `builds`. Dates in the
 facts are relative with the absolute UTC time next to them (`When` in `components/ui.js`). Files one
-endpoint has not served yet read from the new version's side: "New version seen on legacy only (8): …",
+endpoint has not served yet read from the new version's side: "New version seen on appsforoffice only (8): …",
 with a hint that shares are averages over all sampled responses.
 
 ## Notes
 
 Write-ups (e.g. a rollout we watched end to end) live in the repository as `frontend/content/notes/<slug>.md`:
 front matter with `title` (the h1), `description` (meta, ≤160 chars), `date` (`YYYY-MM-DD`) and optionally
-`seoTitle` (the `<title>`), `updated` (`YYYY-MM-DD`; both dates are validated), `keywords` (comma-separated), `builds`
+`seoTitle` (the `<title>`), `updated` (`YYYY-MM-DD`; both dates are validated; shown as "· updated …" on the note and in `/notes` when it differs from `date`), `keywords` (comma-separated), `builds`
 (comma-separated Office.js builds whose rollout pages link the note as "Write-up →") and `checked` (when the facts were last
 verified, shown next to the date) — SEO use in [`seo.md`](seo.md), then Markdown (GFM: tables, code blocks), rendered with `marked` at
 build time (`lib/notes.js`). A line `<!-- subscribe: lead text -->` puts the site's subscribe form there. The HTML is trusted because it is our own text. Images go

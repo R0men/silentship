@@ -116,14 +116,14 @@ describe("channel card", () => {
   const rolling = (share) => ({ status: "rolling", share });
 
   it("names no build while both endpoints roll", () => {
-    expect(endpointProgress(g(rolling(0.44), rolling(0.51)))).toBe("legacy 44% · onecdn 51% of edges");
+    expect(endpointProgress(g(rolling(0.44), rolling(0.51)))).toBe("appsforoffice 44% · onecdn 51% of edges");
   });
 
   it("names a build only on the endpoint settled on it", () => {
     expect(endpointProgress(g({ status: "complete", share: 1 }, rolling(0.51)))).toBe(
-      "legacy 16.0.20626 (complete) · onecdn rolling out, 51%",
+      "appsforoffice 16.0.20626 (complete) · onecdn rolling out, 51%",
     );
-    expect(endpointProgress(g(rolling(0.2), null))).toBe("legacy rolling out, 20% · onecdn 16.0.20619 (not started)");
+    expect(endpointProgress(g(rolling(0.2), null))).toBe("appsforoffice rolling out, 20% · onecdn 16.0.20619 (not started)");
   });
 
   it("keeps one share when OneCDN is not crawled", () => {

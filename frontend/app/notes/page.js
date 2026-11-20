@@ -36,6 +36,12 @@ export default function Notes() {
               {fmtDay(n.date)}
             </time>
             <Link href={n.path}>{n.title}</Link>
+            {n.updated && n.updated !== n.date && (
+              <span className="faint">
+                {" "}
+                · updated <time dateTime={n.updated}>{fmtDay(n.updated)}</time>
+              </span>
+            )}
             <p>{n.description}</p>
           </li>
         ))}

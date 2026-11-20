@@ -2,7 +2,7 @@ import { config, LEGACY_CHANNEL, legacyOf, pairedChannel } from "../config.js";
 import { db } from "../db.js";
 import { SEVERITY_RANK } from "../analysis/diff.js";
 import { apiStatus, learnUrl } from "../analysis/api-catalog.js";
-import { flagsChangeNotice, MS_CDN_DOCS } from "../crawler/loader.js";
+import { flagsChangeNotice } from "../crawler/loader.js";
 import { LOADER_PATH } from "../crawler/manifest.js";
 import { CONFIRM_RUNS } from "../pipeline/rollouts.js";
 
@@ -325,7 +325,6 @@ export async function getGroup(channel, group) {
           from: flagged.fromFlags,
           to: flagged.toFlags,
           notice: flagsChangeNotice(channel, flagged.fromFlags, flagged.toFlags),
-          docs: MS_CDN_DOCS,
         }
       : null,
     hosts: items.map((r) => ({
