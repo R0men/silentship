@@ -9,7 +9,9 @@ Umami Cloud, loaded with `next/script` (`strategy="afterInteractive"`):
 
 - only when `NODE_ENV=production` (`npm run dev` does not load it);
 - `data-domains="silentship.dev"` — Umami counts visits only on the production domain, so a local
-  `npm start` or a test instance does not pollute the stats.
+  `npm start` or a test instance does not pollute the stats;
+- `data-exclude-hash="true"` — `/#rollouts` (the nav link, `SectionLink`) is the home page, not a page of
+  its own.
 
 Umami sets no cookies and stores no IP addresses — no consent banner needed; `/privacy` says so ("What we
 collect" and "Who processes it").

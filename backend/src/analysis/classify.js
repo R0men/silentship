@@ -131,8 +131,37 @@ export function classifyChanges(changes, statusOf = apiStatus, platform = null) 
   });
 }
 
+/**
+ * Generated methods of Office.js proxy classes that list every scalar property of their type: `set` passes
+ * the names to `_recursivelySet`, `toJSON` copies each one. A property added to the type changes their body
+ * and nothing else (16.0.20710: `allowTextToOverflow` on `Excel.ChartDataLabel(s)`), so on their own they
+ * would read as Medium every time Microsoft adds a property. A removed property does the same (16.0.20619,
+ * `Word.LineFormat`); the removal itself stays High.
+ */
+export const GENERATED_METHODS = new Set(["set", "toJSON"]);
+
+const MEMBER_CHANGES = new Set(["added", "removed", "renamed"]);
+
+/** A `bodyChanged` of a generated method whose type gained, lost or renamed a member in the same diff. */
+export function isSideEffect(change, siblings) {
+  if (change.kind !== "bodyChanged" || !GENERATED_METHODS.has(leafOf(change.path))) return [];
+  const type = parentOf(change.path);
+  return siblings.filter((s) => MEMBER_CHANGES.has(s.kind) && parentOf(s.path) === type).map((s) => s.path);
+}
+
+/**
+ * Lower the side effects of a member change to Low and say which members they follow (`follows`). Those
+ * members are reported on their own; the changed `set`/`toJSON` only repeats them.
+ */
+export function markSideEffects(changes) {
+  return changes.map((c) => {
+    const follows = isSideEffect(c, changes);
+    return follows.length ? { ...c, severity: "low", follows } : c;
+  });
+}
+
 export function postProcess(changes, statusOf, platform) {
-  return classifyChanges(detectRenames(changes), statusOf, platform);
+  return classifyChanges(markSideEffects(detectRenames(changes)), statusOf, platform);
 }
 
 /** One rollout's `apiDiffNote`: the diff's own note and the distinct platform notes of its changes. */

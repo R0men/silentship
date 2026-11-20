@@ -11,6 +11,7 @@ import {
   channelState,
   errorMessages,
   fileLabel,
+  followsText,
   loweredText,
   pageDescription,
   pageTitle,
@@ -180,6 +181,7 @@ export default async function ApiTypePage({ params }) {
                     )}
                   </div>
                   {loweredText(e) && <div className="detail">{loweredText(e)}</div>}
+                  {followsText(e) && <div className="detail">{followsText(e)}</div>}
                 </div>
                 <div>
                   <Link className="mono" href={rolloutHref(e)}>

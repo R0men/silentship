@@ -105,14 +105,14 @@ async function addWatch(email, pattern, hosts) {
  * their rollouts' severity drops. `dryRun` only prints what would change.
  */
 async function reclassify({ dryRun = false } = {}) {
-  const { changes, rollouts, lowered } = await reclassifyStored(undefined, { dryRun });
-  for (const r of dryRun ? lowered : []) {
+  const { changes, rollouts, lowered, raised = [] } = await reclassifyStored(undefined, { dryRun });
+  for (const r of dryRun ? [...lowered, ...raised] : []) {
     console.log(`${r.channel} ${r.toBuild} ${r.path}: ${r.from} → ${r.to}${r.note ? ` (${r.note})` : ""}`);
   }
   if (changes || dryRun) {
     console.log(
       `${dryRun ? "Would reclassify" : "Reclassified"} ${changes} stored API change(s); ` +
-        `${dryRun ? "would lower" : "lowered"} severity of ${rollouts} rollout(s)`,
+        `${dryRun ? "would change" : "changed"} severity of ${rollouts} rollout(s)`,
     );
   }
 }

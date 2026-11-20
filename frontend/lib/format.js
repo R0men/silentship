@@ -38,6 +38,12 @@ export const KIND_LABEL = {
   renamed: "Renamed",
 };
 
+/** One line under a change kind where the label alone is jargon. */
+export const KIND_HINT = {
+  bodyChanged: "same signature, new body",
+  kindChanged: "e.g. a method became a property",
+};
+
 /** Short label for where an API stands in Microsoft's docs. */
 export function apiStatusLabel(c) {
   if (c.apiStatus === "preview") return "preview API";
@@ -169,6 +175,8 @@ export function highlights(apiChanges, limit = 3) {
     .map((h) => `${h.type}: ${h.n === 1 ? "1 member" : `${h.n} members`} ${KIND_PHRASE[h.kind] ?? h.kind}`);
 }
 
+const isInternal = (c) => c.apiStatus === "preview" || c.apiStatus === "undocumented";
+
 /**
  * The 1–2 sentences on top of a release page, from its data: what rolls out where and since when, and what
  * it does to the documented API. `lead` and `verdict` are plain text; `highlights` for High only.
@@ -187,11 +195,21 @@ export function releaseSummary(r) {
         ? "No public API changes, but high severity: a file was removed or office.js changed its security defaults."
         : "No public API changes. This build doesn't change any documented API.";
   } else if (r.severity === "high" || r.severity === "medium") {
-    verdict = `Documented API changed: ${plural(r.uniqueApiChanges, "change")}. See the list below.`;
-  } else if (changes.length && changes.every((c) => c.apiStatus === "preview" || c.apiStatus === "undocumented")) {
+    // Count only what carries the severity: most changes of a release are usually internals or additions.
+    const serious = changes.filter((c) => c.severity === "high" || c.severity === "medium").length || r.uniqueApiChanges;
+    const rest = r.uniqueApiChanges - serious;
+    verdict =
+      `Documented API changed: ${plural(serious, "change")} of medium or high severity` +
+      (rest > 0 ? `, plus ${rest} minor, preview or undocumented` : "") +
+      ". See the list below.";
+  } else if (changes.length && changes.every(isInternal)) {
     verdict = "Only preview or undocumented APIs changed.";
   } else {
-    verdict = `No breaking changes to documented APIs: ${plural(r.uniqueApiChanges, "addition or minor change")}, listed below.`;
+    const internal = changes.filter(isInternal).length;
+    verdict =
+      `No breaking changes to documented APIs: ${plural(r.uniqueApiChanges, "change")}` +
+      (internal ? `, ${internal} of them to preview or undocumented APIs` : "") +
+      ", listed below.";
   }
   return { lead, verdict, highlights: r.severity === "high" ? highlights(changes) : [] };
 }

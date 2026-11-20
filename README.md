@@ -15,7 +15,8 @@ silentship watches both endpoints, production and beta. It also reads the securi
 `office.js` (the new endpoint's loader stops loading MicrosoftAjax) and alerts if they change. Every 10 minutes it samples every Office.js file on several edge servers,
 tracks each new build as a **rollout** (which files, what share of edges serve it, since when), diffs the
 **public API surface** between versions, and publishes the result at
-[silentship.dev](https://silentship.dev), in [RSS](https://silentship.dev/rss.xml) and as email/Slack alerts.
+[silentship.dev](https://silentship.dev), in [RSS](https://silentship.dev/rss.xml) and as email alerts (plus a Slack webhook for whoever runs an
+instance).
 
 ---
 

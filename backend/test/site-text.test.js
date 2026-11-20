@@ -38,7 +38,19 @@ describe("release page summary", () => {
       change("Excel.Range", "bodyChanged", "medium"),
     ];
     const s = releaseSummary(release({ severity: "high", uniqueApiChanges: 10, apiChanges: removed }));
-    expect(s.verdict).toBe("Documented API changed: 10 changes. See the list below.");
+    expect(s.verdict).toBe("Documented API changed: 10 changes of medium or high severity. See the list below.");
+    // 16.0.20710 before side effects were lowered: 4 Medium among 15, 11 of them undocumented.
+    const mixed = [
+      ...Array.from({ length: 4 }, () => change("Excel.ChartDataLabel", "bodyChanged", "medium")),
+      ...Array.from({ length: 11 }, () => change("OfficeCore.X", "added", "low", "undocumented")),
+    ];
+    expect(releaseSummary(release({ severity: "medium", uniqueApiChanges: 15, apiChanges: mixed })).verdict).toBe(
+      "Documented API changed: 4 changes of medium or high severity, plus 11 minor, preview or undocumented. See the list below.",
+    );
+    const lowered = mixed.map((c) => ({ ...c, severity: "low" }));
+    expect(releaseSummary(release({ uniqueApiChanges: 15, apiChanges: lowered })).verdict).toBe(
+      "No breaking changes to documented APIs: 15 changes, 11 of them to preview or undocumented APIs, listed below.",
+    );
     expect(s.highlights).toEqual(["Word.LineFormat: 8 members removed", "Excel.Range: 1 member with new parameters"]);
     expect(highlights(removed, 1)).toEqual(["Word.LineFormat: 8 members removed"]);
   });

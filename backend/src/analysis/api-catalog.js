@@ -15,6 +15,14 @@ import { parse } from "@babel/parser";
 
 const require = createRequire(import.meta.url);
 const API_SET = /\[Api set:\s*([^\]]+)\]/;
+// Common APIs (Office.*) name theirs in a link instead: "**Requirement set**: {@link https://… | RibbonApi 1.1}".
+const REQUIREMENT_SET = /\*\*Requirement sets?\*\*:\s*\{@link [^|}]*\|\s*([^}]+?)\s*\}/;
+
+/** "ExcelApi 1.4", "RibbonApi 1.1"; null when the comment names none (or says "Not in a set"). */
+function apiSetOf(doc) {
+  const set = (API_SET.exec(doc) ?? REQUIREMENT_SET.exec(doc))?.[1]?.trim();
+  return set && !/^not in a set$/i.test(set) ? set : null;
+}
 
 function commentText(node) {
   return (node.leadingComments ?? []).map((c) => c.value).join("\n");
@@ -28,8 +36,25 @@ function nameOf(node) {
   return null;
 }
 
-/** Walk declarations, calling visit(path, docComment) for every namespace, type and member. */
+/** "Ribbon" or "Office.UI" from a plain type reference (`ribbon: Ribbon`); null for unions, arrays, functions. */
+function refName(annotation) {
+  const t = annotation?.typeAnnotation;
+  if (t?.type !== "TSTypeReference") return null;
+  const name = (n) => (n.type === "Identifier" ? n.name : n.type === "TSQualifiedName" ? `${name(n.left)}.${n.right.name}` : null);
+  return name(t.typeName);
+}
+
+/**
+ * Walk declarations, calling visit(path, docComment, inherited, ref) for every namespace, type and member.
+ * `ref` is the type a variable or property points to, with the namespace to resolve it in
+ * (`Office.ribbon` → { name: "Ribbon", ns: "Office" }), so runtime paths can be mapped to typed ones.
+ */
 function walkDeclarations(statements, prefix, visit, inherited) {
+  const ns = prefix.replace(/.$/, "");
+  const refOf = (m) => {
+    const name = refName(m.id?.typeAnnotation ?? m.typeAnnotation);
+    return name ? { name, ns } : null;
+  };
   for (let node of statements) {
     let doc = commentText(node);
     if (node.type === "ExportNamedDeclaration" && node.declaration) {
@@ -39,7 +64,7 @@ function walkDeclarations(statements, prefix, visit, inherited) {
     const name = nameOf(node);
     if (!name) {
       if (node.type === "VariableDeclaration") {
-        for (const d of node.declarations) if (d.id?.name) visit(`${prefix}${d.id.name}`, doc, inherited);
+        for (const d of node.declarations) if (d.id?.name) visit(`${prefix}${d.id.name}`, doc, inherited, refOf(d));
       }
       continue;
     }
@@ -62,13 +87,13 @@ function walkDeclarations(statements, prefix, visit, inherited) {
       case "ClassDeclaration":
         for (const m of node.body.body) {
           const n = nameOf(m);
-          if (n && !n.startsWith("_")) visit(`${path}.${n}`, commentText(m), own);
+          if (n && !n.startsWith("_")) visit(`${path}.${n}`, commentText(m), own, refOf(m));
         }
         break;
       case "TSInterfaceDeclaration":
         for (const m of node.body.body) {
           const n = nameOf(m);
-          if (n) visit(`${path}.${n}`, commentText(m), own);
+          if (n) visit(`${path}.${n}`, commentText(m), own, refOf(m));
         }
         break;
       case "TSEnumDeclaration":
@@ -96,6 +121,8 @@ function readTypes(pkg) {
 /** Build path → { status, apiSet } from both packages. */
 export function buildCatalog() {
   const entries = new Map();
+  // path → { name, ns } of the type it points to: `Office.context` → Context in Office.
+  const refs = new Map();
   const ga = readTypes("@types/office-js");
   const preview = readTypes("@types/office-js-preview");
 
@@ -103,8 +130,9 @@ export function buildCatalog() {
     walkDeclarations(
       ast.program.body,
       "",
-      (path, doc, inherited) => {
-        const set = API_SET.exec(doc)?.[1]?.trim() ?? inherited?.apiSet ?? null;
+      (path, doc, inherited, ref) => {
+        if (ref && !refs.has(path)) refs.set(path, ref);
+        const set = apiSetOf(doc) ?? inherited?.apiSet ?? null;
         const beta = /@beta\b/.test(doc) || /PREVIEW ONLY/i.test(set ?? "") || Boolean(inherited?.beta);
         const info = { apiSet: set, beta };
         if (!isPreviewPackage) {
@@ -120,7 +148,7 @@ export function buildCatalog() {
   };
   collect(ga.ast, false);
   collect(preview.ast, true);
-  return { entries, versions: { ga: ga.version, preview: preview.version } };
+  return { entries, refs, versions: { ga: ga.version, preview: preview.version } };
 }
 
 let catalog;
@@ -130,11 +158,41 @@ export function apiCatalog() {
   return catalog;
 }
 
+/** The declared type a path points to (`Office.ribbon` → "Office.Ribbon"), resolved like TypeScript does. */
+function typeOf(path, cat) {
+  const ref = cat.refs?.get(path);
+  if (!ref) return null;
+  const scopes = ref.ns ? ref.ns.split(".") : [];
+  for (let i = scopes.length; i >= 0; i--) {
+    const candidate = [...scopes.slice(0, i), ref.name].join(".");
+    if (cat.entries.has(candidate)) return candidate;
+  }
+  return null;
+}
+
 /**
- * Status of a reflected path. Exact match first; otherwise the nearest documented ancestor decides
+ * The typed path of a runtime one. Office.js exposes some APIs through objects (`Office.context.ui`,
+ * `Office.ribbon`) whose members the types declare on an interface (`Office.UI`, `Office.Ribbon`), so
+ * `Office.context.ui.displayDialogAsync` is documented as `Office.UI.displayDialogAsync`.
+ */
+export function typedPath(path, cat = apiCatalog()) {
+  const parts = path.split(".");
+  let cur = parts[0];
+  for (let i = 1; i < parts.length; i++) {
+    const next = `${cur}.${parts[i]}`;
+    cur = i < parts.length - 1 ? (typeOf(next, cat) ?? next) : next;
+  }
+  return cur;
+}
+
+/**
+ * Status of a reflected path. Exact match first, then the same API reached through an object (`typedPath`); otherwise the nearest documented ancestor decides
  * whether the member is preview (inside a preview type) or merely undocumented (inside a GA type).
  */
-export function apiStatus(path, cat = apiCatalog()) {
+export function apiStatus(runtimePath, cat = apiCatalog()) {
+  const direct = cat.entries.get(runtimePath);
+  if (direct) return direct;
+  const path = typedPath(runtimePath, cat);
   const exact = cat.entries.get(path);
   if (exact) return exact;
   const parts = path.split(".");

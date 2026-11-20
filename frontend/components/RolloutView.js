@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { loweredText, typeHref } from "@/lib/apiType";
-import { apiStatusLabel, hostLabel, KIND_LABEL, pct, STATUS_LABEL } from "@/lib/format";
+import { followsText, loweredText, typeHref } from "@/lib/apiType";
+import { apiStatusLabel, hostLabel, KIND_HINT, KIND_LABEL, pct, STATUS_LABEL } from "@/lib/format";
 import { Segmented, Severity, ShareBar, Sparkline } from "./ui";
 
 function HostChips({ files }) {
@@ -138,8 +138,12 @@ export default function RolloutView({ rollout }) {
                   )}
                 </div>
                 {loweredText(c) && <div className="detail">{loweredText(c)}</div>}
+                {followsText(c) && <div className="detail">{followsText(c)}</div>}
               </div>
-              <div className="muted">{KIND_LABEL[c.kind] ?? c.kind}</div>
+              <div className="muted">
+                {KIND_LABEL[c.kind] ?? c.kind}
+                {KIND_HINT[c.kind] && <div className="detail">{KIND_HINT[c.kind]}</div>}
+              </div>
               <div>
                 <Severity value={c.severity} />
               </div>

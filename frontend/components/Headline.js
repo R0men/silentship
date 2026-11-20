@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { track } from "@/lib/analytics";
-import { apiChangesText, severityPhrase, shortBuild } from "@/lib/format";
+import { apiChangesText, plural, severityPhrase, shortBuild, timeAgo } from "@/lib/format";
 import { AnimatedNumber, useLive } from "./Live";
 
 /** The biggest rollout in flight on a channel (most files), if any. */
@@ -11,6 +11,13 @@ function mainRollout(channel) {
 }
 
 const percent = (v) => `${Math.round(v * 100)}%`;
+
+/** "15 API changes, none breaking" / "12 API changes, high severity" / "no public API changes". */
+function latestPhrase(g) {
+  if (!g.uniqueApiChanges) return g.severity === "high" ? "high severity" : "no public API changes";
+  const count = plural(g.uniqueApiChanges, "API change");
+  return g.severity === "high" || g.severity === "medium" ? `${count}, ${g.severity} severity` : `${count}, none breaking`;
+}
 
 /**
  * The hero states what is happening on the CDN right now, with live numbers.
@@ -65,22 +72,50 @@ export default function Headline({ initial }) {
   }
 
   if (prod?.build) {
+    // Nothing in flight: lead with the newest release instead of an empty "nothing happening".
+    const latest = prod.latest?.toBuild ? prod.latest : null;
     return (
       <>
         <p className="eyebrow">
-          <span className="dot dot-ok" /> Watching the Office.js CDN
+          <span className="dot dot-ok" /> Watching the Office.js CDN · no rollout in progress
         </p>
-        <h1>
-          Office.js{" "}
-          <span className="h-build" title={prod.build}>
-            {shortBuild(prod.build)}
-          </span>{" "}
-          is live everywhere.
-          <span className="muted-h"> No rollout in progress.</span>
-        </h1>
+        {latest ? (
+          <h1>
+            Latest: Office.js{" "}
+            <span className="h-build" title={latest.toBuild}>
+              {shortBuild(latest.toBuild)}
+            </span>
+            <span className="muted-h">
+              {" "}
+              — {latestPhrase(latest)}.
+            </span>
+          </h1>
+        ) : (
+          <h1>
+            Office.js{" "}
+            <span className="h-build" title={prod.build}>
+              {shortBuild(prod.build)}
+            </span>{" "}
+            is live everywhere.
+            <span className="muted-h"> No rollout in progress.</span>
+          </h1>
+        )}
         <p className="lede">
-          Every few minutes we sample each Office.js file across CDN edges. The moment Microsoft starts shipping a new
-          build, you will see it here — and in your inbox.
+          {latest?.status === "complete" && latest.completedAt && (
+            // Server and browser render "ago" a moment apart.
+            <span suppressHydrationWarning>Rolled out to every sampled edge {timeAgo(latest.completedAt)}. </span>
+          )}
+          Every 10 minutes we sample each Office.js file across CDN edges. The next build shows up here — and in your
+          inbox.{" "}
+          {latest && (
+            <Link
+              className="lede-link"
+              href={href("prod", latest)}
+              onClick={() => track("open_rollout", { channel: "prod", severity: latest.severity, from: "headline" })}
+            >
+              What changed in {shortBuild(latest.toBuild)} →
+            </Link>
+          )}
         </p>
       </>
     );

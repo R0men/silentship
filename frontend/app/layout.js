@@ -93,6 +93,8 @@ export default function RootLayout({ children }) {
             src="https://cloud.umami.is/script.js"
             data-website-id="29a30a96-2622-42a7-882e-e79df1ced944"
             data-domains={SITE.domain}
+            // "Rollouts" in the nav jumps to /#rollouts; without this Umami counts it as another page.
+            data-exclude-hash="true"
             strategy="afterInteractive"
           />
         )}

@@ -89,9 +89,17 @@ every 20606 file while present in 20528. So the removal is real.
 | `kind` or `arity` changed | High |
 | enum value removed or changed | High |
 | `bodyHash` of a public function/method changed | Medium |
+| `bodyHash` of a generated `set`/`toJSON` whose type gained, lost or renamed a member in the same diff | Low, with `follows` |
 | enum value added, new node | Low |
 | class constructor (add-ins do not call it) | Low |
 | non-host file changed (strings, telemetry, o15 map) | Low (file level) |
+
+**Side effects of a member change.** `set` and `toJSON` of Office.js proxy classes are generated and list
+every scalar property of their class, so a property added or removed changes their body and nothing else
+(16.0.20710: one more name, `allowTextToOverflow`, in the list of `Excel.ChartDataLabel(s).set`).
+`markSideEffects` (`classify.js`) lowers them to Low and records the member paths in `follows`; the member
+change itself keeps its own severity (a removal stays High). The site says why under the change
+(`followsText` in `frontend/lib/apiType.js`). `reclassifyStored` applies the rule to stored rows.
 
 A rollout's severity is the maximum over its API changes; a removed file is High, a new file Low. A new
 `office.js` whose security-default flags changed is High whatever its API changes (`loader-flags-changed`,
@@ -107,6 +115,15 @@ change gets `apiStatus` (`ga` / `preview` / `undocumented`) and `apiSet` (`Excel
 - changes to preview APIs (`[Api set: … BETA (PREVIEW ONLY)]`, `@beta`) are Low, tagged "preview": Microsoft
   explicitly warns they may change;
 - undocumented members (present at runtime, absent from the types) are Low too.
+
+**APIs reached through an object.** Office.js exposes some APIs through objects (`Office.context.ui`,
+`Office.ribbon`), while the types declare their members on an interface (`Office.UI`, `Office.Ribbon`). The
+catalogue keeps the type each variable and property points to (`refs`), and `typedPath` follows them:
+`Office.ribbon.requestUpdate` → `Office.Ribbon.requestUpdate`, `Office.context.ui.displayDialogAsync` →
+`Office.UI.displayDialogAsync`. Unions (`Office.context.mailbox.item`) are not followed. Common APIs name their
+requirement set in a link (`**Requirement set**: {@link … | RibbonApi 1.1}`), read as well as `[Api set: …]`.
+Before this (until 16.0.20710) such changes were tagged undocumented; `reclassifyStored` re-tags stored body
+changes of them as GA and raises their rollouts to Medium — the only case where it raises, and never to High.
 
 **Platform of the file.** Some requirement sets are production on some platforms only: `WordApiDesktop`,
 `ExcelApiDesktop` and `WordApiHiddenDocument` on Windows and Mac, `WordApiOnline` and `ExcelApiOnline` on the
@@ -124,10 +141,10 @@ The types are updated with the dependencies (`npm update -w backend`).
 **Stored changes without a status.** Changes saved before classification existed (the beta rollout of
 16.0.20606.15070, first seen 2026-10-14) have no `apiStatus` and keep the raw diff's severity — preview
 removals showed as High. `reclassifyStored` (`analysis/reclassify.js`) classifies every row with
-`apiStatus: null`, applies the platform rule to GA rows saved before it existed (`gaOnPlatform` missing) and
-lowers the severity of their rollouts to match; `npm run reclassify -w backend -- --dry-run` prints what it
-would lower without writing; it never raises one, so the guard against
-High from an incomplete reflection holds. `cli start` runs it at boot; `npm run reclassify -w backend` runs it
+`apiStatus: null`, applies the platform rule to GA rows saved before it existed (`gaOnPlatform` missing), marks
+side effects of member changes (above) and lowers the severity of their rollouts to match; `npm run reclassify -w backend -- --dry-run` prints what it
+would change without writing. It raises only misfiled body changes of APIs reached through an object (above),
+and only to Medium, so the guard against High from an incomplete reflection holds. `cli start` runs it at boot; `npm run reclassify -w backend` runs it
 alone. Idempotent: a second run finds nothing. Alerts already sent are not resent.
 
 The catalogue is also read by the web API: `/api/types/:type` returns the type's current status, requirement

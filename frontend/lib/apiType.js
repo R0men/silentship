@@ -43,6 +43,17 @@ export function loweredText(c) {
   return `${level[0].toUpperCase()}${level.slice(1)} on ${hostsSentence(c.lowered.map((l) => l.file))}: ${c.apiSet} is not GA there.`;
 }
 
+/**
+ * Why a generated `set`/`toJSON` is Low (`follows` from the API): it lists every property of its type, so a
+ * property added or removed changes its body and nothing else. null for any other change.
+ */
+export function followsText(c) {
+  if (!c.follows?.length) return null;
+  const names = c.follows.map((p) => p.split(".").pop());
+  const shown = names.length > 3 ? [...names.slice(0, 2), `${names.length - 2} more`] : names;
+  return `Low: this generated method lists the type's properties; it changed together with ${list(shown)} (listed separately), not on its own.`;
+}
+
 function list(items) {
   if (items.length <= 1) return items.join("");
   return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;

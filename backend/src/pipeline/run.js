@@ -307,6 +307,8 @@ export async function runChannel(channel, archive) {
             apiStatus: a.apiStatus ?? null,
             apiSet: a.apiSet ?? null,
             gaOnPlatform: a.gaOnPlatform ?? null,
+            // A generated set/toJSON that changed only because the type gained these members (classify.js).
+            follows: a.follows ?? null,
             before: a.before ?? null,
             after: a.detail ? { ...a.after, delta: a.detail } : (a.after ?? null),
           })),

@@ -246,6 +246,39 @@ describe("smoothedShare", () => {
 });
 
 describe("classify", () => {
+  it("lowers a generated set/toJSON that changed only because its type gained a member", async () => {
+    const { postProcess } = await import("../src/analysis/classify.js");
+    const status = (p) =>
+      p.startsWith("Excel.ChartDataLabels.") && !p.endsWith("allowTextToOverflow")
+        ? { status: "ga", apiSet: "ExcelApi 1.1" }
+        : { status: "undocumented", apiSet: null };
+    const body = (path) => ({ path, kind: "bodyChanged", severity: "medium" });
+    const out = postProcess(
+      [
+        body("Excel.ChartDataLabels.set"),
+        body("Excel.ChartDataLabels.toJSON"),
+        { path: "Excel.ChartDataLabels.allowTextToOverflow", kind: "added", severity: "low", after: { kind: "property" } },
+        // A method that is not generated, and a generated one in a type that gained nothing: both stay Medium.
+        body("Excel.ChartDataLabels.load"),
+        body("Excel.Range.set"),
+        // 16.0.20619: properties removed; the removal stays High, the set it changed does not.
+        { path: "Word.LineFormat.pattern", kind: "removed", severity: "high" },
+        body("Word.LineFormat.set"),
+      ],
+      (p) => (/^(Excel.Range|Word)./.test(p) ? { status: "ga", apiSet: "ExcelApi 1.1" } : status(p)),
+      "web",
+    );
+    expect(out.map((c) => [c.path, c.severity, c.follows ?? null])).toEqual([
+      ["Excel.ChartDataLabels.set", "low", ["Excel.ChartDataLabels.allowTextToOverflow"]],
+      ["Excel.ChartDataLabels.toJSON", "low", ["Excel.ChartDataLabels.allowTextToOverflow"]],
+      ["Excel.ChartDataLabels.allowTextToOverflow", "low", null],
+      ["Excel.ChartDataLabels.load", "medium", null],
+      ["Excel.Range.set", "medium", null],
+      ["Word.LineFormat.pattern", "high", null],
+      ["Word.LineFormat.set", "low", ["Word.LineFormat.pattern"]],
+    ]);
+  });
+
   it("demotes preview and undocumented API changes, keeps GA severity, and tags requirement sets", async () => {
     const { classifyChanges } = await import("../src/analysis/classify.js");
     const status = (p) =>
@@ -338,5 +371,16 @@ describe("classify", () => {
     expect(apiStatus("Excel.Range.getCell")).toEqual({ status: "ga", apiSet: "ExcelApi 1.1" });
     expect(apiStatus("Excel.SensitivityLabelAbacAttribute").status).toBe("preview");
     expect(apiStatus("Excel.Range.notARealMember").status).toBe("undocumented");
+  });
+
+  it("maps APIs reached through an object to the interface the types declare them on", async () => {
+    const { apiStatus, typedPath } = await import("../src/analysis/api-catalog.js");
+    // 16.0.20710 changed Office.ribbon.requestUpdate; the types have it as Office.Ribbon.requestUpdate.
+    expect(typedPath("Office.ribbon.requestUpdate")).toBe("Office.Ribbon.requestUpdate");
+    expect(apiStatus("Office.ribbon.requestUpdate")).toEqual({ status: "ga", apiSet: "RibbonApi 1.1" });
+    expect(typedPath("Office.context.ui.displayDialogAsync")).toBe("Office.UI.displayDialogAsync");
+    expect(apiStatus("Office.context.ui.displayDialogAsync").status).toBe("ga");
+    expect(apiStatus("Office.ribbon.notARealMember").status).toBe("undocumented");
+    expect(apiStatus("Office.ExtensionLifeCycle.launchAgent").status).toBe("undocumented");
   });
 });

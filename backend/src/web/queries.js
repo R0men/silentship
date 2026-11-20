@@ -255,6 +255,7 @@ function groupApiChanges(rows) {
     rowsOf.set(key, [...(rowsOf.get(key) ?? []), c]);
     if (existing) {
       existing.files.push(c.file);
+      if (c.follows?.length && !existing.follows) existing.follows = c.follows;
       if (SEVERITY_RANK[c.severity] > SEVERITY_RANK[existing.severity]) existing.severity = c.severity;
     } else {
       grouped.set(key, {
@@ -268,6 +269,7 @@ function groupApiChanges(rows) {
         detail: describe(c.kind, c.before, c.after),
         type: apiTypeOf(c.path),
         fromType: c.from ? apiTypeOf(c.from) : null,
+        follows: c.follows ?? null,
       });
     }
   }
@@ -670,6 +672,7 @@ export async function getApiType(type) {
         apiStatus: c.apiStatus ?? null,
         apiSet: c.apiSet ?? null,
         detail: describe(c.kind, c.before, c.after),
+        follows: null,
         files: [],
         pulledFiles: [],
         rows: [],
@@ -678,6 +681,7 @@ export async function getApiType(type) {
       events.set(key, e);
     }
     e.rows.push({ ...c, file: r.path });
+    if (c.follows?.length && !e.follows) e.follows = c.follows;
     (r.status === "abandoned" ? e.pulledFiles : e.files).push(r.path);
     if (SEVERITY_RANK[c.severity] > SEVERITY_RANK[e.severity]) e.severity = c.severity;
     e.lastModified = latest([e.lastModified, r.lastSeenAt, r.completedAt]);

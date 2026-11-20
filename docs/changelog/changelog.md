@@ -25,6 +25,14 @@
 
 ## History
 
+- **2026-11-20** — [2026-11-20.md](2026-11-20.md)
+  - `[Bug Fix]` A generated `set`/`toJSON` that changed with a new or removed member is Low
+  - `[Bug Fix]` Documented APIs reached through an object (`Office.ribbon`, `Office.context.*`) are no longer undocumented
+  - `[Feature]` Home headline leads with the latest release when nothing rolls out
+  - `[Style]` Release verdict counts only the changes that carry the severity; "Implementation" explained
+  - `[Docs]` Privacy and README promise only what exists; notes on 16.0.20710 and 16.0.20626/20702
+  - `[Infra]` Umami ignores the URL hash; Next.js 16.4.6; fast-uri fix
+
 - **2026-11-06** — [2026-11-06.md](2026-11-06.md)
   - `[Bug Fix]` A rollout completes only after 6 runs on 12 different edges (or 36 runs in any case)
   - `[Bug Fix]` OneCDN builds get complete API diffs; a failed diff says so

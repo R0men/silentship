@@ -87,7 +87,8 @@ The loader picks the host file from `_host_Info` (from `window.external.GetHostI
    a hash of the normalized function body. Trees are compared, not text.
 3. **Severity:**
    - `High` — a public GA member disappeared, its type or arity changed, an enum value was removed or changed; a file was deleted; `office.js` changed its security-default flags (`loader-flags-changed`: on legacy this stops loading MicrosoftAjax for every add-in it reaches).
-   - `Medium` — the body of a public GA function changed (not its signature).
+   - `Medium` — the body of a public GA function changed (not its signature). Not for generated `set`/`toJSON`
+     when their type gained, lost or renamed a member in the same build: that is a side effect, Low.
    - `Low` — new API, preview and undocumented APIs, class constructors, strings, telemetry, a new file.
    - A GA change in a file for a platform where its requirement set is not production is one level lower
      (High → Medium, Medium → Low): `WordApiDesktop`, `ExcelApiDesktop`, `WordApiHiddenDocument` are production

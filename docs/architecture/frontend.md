@@ -84,7 +84,8 @@ server-rendered HTML shows (bots and link previews must not read "Offline"); `li
 
 **Headline with live numbers** (`components/Headline.js`): "Office.js 16.0.20619 is rolling out: 1% of sampled
 edges, high-severity API changes." (`severityPhrase`) — production first, else "… is rolling out on beta: …",
-and a quiet-time variant. Any release the RSS feed or an alert has (confirmed, rolling on either endpoint)
+and a quiet-time variant that leads with the newest production release ("Latest: Office.js 16.0.20710 — 15 API
+changes, none breaking.", when it reached every sampled edge, a link to its page). Any release the RSS feed or an alert has (confirmed, rolling on either endpoint)
 leads here: the headline, cards, list and the "N with high-severity changes" counter all read one snapshot,
 and a live snapshot older than the server render never replaces it (also in the list's counter). The
 wording is deliberately about the CDN's share, not users': we measure edge responses, and a user gets the
