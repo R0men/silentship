@@ -758,6 +758,7 @@ export async function listApiTypes() {
           _id: { path: "$path", from: "$from", kind: "$kind" },
           sevRank: { $max: sevRank },
           ids: { $addToSet: "$rolloutId" },
+          statuses: { $addToSet: "$apiStatus" },
         },
       },
     ])
@@ -767,7 +768,16 @@ export async function listApiTypes() {
   const add = (type, row, rs) => {
     let t = types.get(type);
     if (!t) {
-      t = { type, kinds: new Set(), channels: new Set(), paths: new Set(), sevRank: 0, lastSeenAt: null, lastModified: null };
+      t = {
+        type,
+        kinds: new Set(),
+        channels: new Set(),
+        paths: new Set(),
+        sevRank: 0,
+        lastSeenAt: null,
+        lastModified: null,
+        builds: new Map(),
+      };
       types.set(type, t);
     }
     t.kinds.add(row._id.kind);
@@ -775,6 +785,19 @@ export async function listApiTypes() {
     t.sevRank = Math.max(t.sevRank, row.sevRank);
     for (const r of rs) {
       t.channels.add(r.channel);
+      // Per build (one group name on both tracks): what this type did in it, for the hub's "by build" view.
+      const first = groupFirst.get(keyOf(r.channel, r.group));
+      let b = t.builds.get(r.group);
+      if (!b) {
+        b = { group: r.group, channels: new Set(), kinds: new Set(), sevRank: 0, firstSeenAt: first, documented: false };
+        t.builds.set(r.group, b);
+      }
+      b.channels.add(r.channel);
+      b.kinds.add(row._id.kind);
+      b.sevRank = Math.max(b.sevRank, row.sevRank);
+      // A GA type can change only in undocumented members (Excel.PivotTable.lastRefreshed): the change decides.
+      if ((row.statuses ?? []).some((st) => st && st !== "undocumented")) b.documented = true;
+      if (first < b.firstSeenAt) b.firstSeenAt = first;
       t.lastSeenAt = latest([t.lastSeenAt, groupFirst.get(keyOf(r.channel, r.group))]);
       t.lastModified = latest([t.lastModified, r.lastSeenAt, r.completedAt]);
     }
@@ -796,6 +819,16 @@ export async function listApiTypes() {
       docs: apiStatus(t.type),
       lastSeenAt: t.lastSeenAt,
       lastModified: t.lastModified,
+      builds: [...t.builds.values()]
+        .map((b) => ({
+          group: b.group,
+          channels: ["prod", "beta"].filter((c) => b.channels.has(c)),
+          kinds: [...b.kinds].sort(),
+          severity: SEVERITY_NAME[b.sevRank],
+          documented: b.documented,
+          firstSeenAt: b.firstSeenAt,
+        }))
+        .sort((x, y) => y.firstSeenAt - x.firstSeenAt),
     }))
     .sort((a, b) => b.lastSeenAt - a.lastSeenAt || a.type.localeCompare(b.type));
 }

@@ -2,6 +2,7 @@ import Scene from "@/components/Scene";
 import Subscribe from "@/components/Subscribe";
 import Headline from "@/components/Headline";
 import ChannelStatus from "@/components/ChannelStatus";
+import LatestNotes from "@/components/LatestNotes";
 import Rollouts from "@/components/Rollouts";
 import JsonLd from "@/components/JsonLd";
 import { apiGetOr } from "@/lib/api";
@@ -46,6 +47,8 @@ export default async function Home() {
       <ChannelStatus initial={initial} />
 
       <Rollouts initial={initial} />
+
+      <LatestNotes />
     </>
   );
 }

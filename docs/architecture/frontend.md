@@ -9,9 +9,10 @@ Code: `frontend/` — Next.js 16 (App Router, Turbopack), React 19, JavaScript. 
 
 | Route | File | Rendering |
 |---|---|---|
-| `/` | `app/page.js` — headline with live numbers, subscribe form, channel status, rollout feed; all from one `/api/home` snapshot, then `/api/live` | SSR on every request (`force-dynamic`) |
+| `/` | `app/page.js` — headline with live numbers, subscribe form, channel status, rollout feed, the 3 newest notes (`components/LatestNotes.js`); all from one `/api/home` snapshot, then `/api/live` | SSR on every request (`force-dynamic`) |
 | `/rollouts/[channel]/[group]` | `app/rollouts/[channel]/[group]/page.js` — one release of a track (`prod`, `beta`): a progress bar per endpoint (legacy, onecdn) with share and completion time, facts, one file table, "Host files byte-identical on both endpoints" or the files of this build that differ, files "not yet on" an endpoint still on an older build, the `loader-flags-changed` notice only when the flags changed. `/rollouts/onecdn-prod/*` and `/rollouts/onecdn-beta/*` → 301 to the track's page (`redirects` in `next.config.mjs`) | SSR on every request |
-| `/reference` | `app/reference/page.js` — hub: every API type changed by a confirmed rollout, by namespace | SSR on every request |
+| `/reference` | `app/reference/page.js` — hub by build, newest first: the types each build changed, with their severity in that build; every change by default, "Documented only" as a filter (`components/HubFilter.js`, CSS only, every row stays in the HTML); the latest 4 builds open, older ones in one `<details>`; "new" on types first changed in the last 7 days; an A–Z index of every changed type at the end. Data: `builds` per type from `/api/types` | SSR on every request |
+| `/settings` | `app/settings/page.js`, `components/Settings.js` — a subscriber's channels, minimum severity and watchlist; token from `#token=…` ([`alerts.md`](alerts.md)). `noindex`, not in the sitemap | static at build time |
 | `/reference/[type]` | `app/reference/[type]/page.js` — one API type: state per channel, advice, change history, related types; wording in `lib/apiType.js` ([`seo.md`](seo.md)) | SSR on every request |
 | `/notes` | `app/notes/page.js` — every note, newest first | static at build time |
 | `/notes/[slug]` | `app/notes/[slug]/page.js` — one note: Markdown from `content/notes/<slug>.md` rendered by `lib/notes.js` | static at build time (`generateStaticParams`, unknown slug → 404) |

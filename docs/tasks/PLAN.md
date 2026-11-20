@@ -6,7 +6,6 @@ An index of work agreed in `TECH.md` but not done. Unlike [`../changelog/changel
 
 | # | Task | Phase | Status | Priority |
 |---|---|---|---|---|
-| 1 | Watchlist and `minSeverity` UI for subscribers (today only the `npm run watch` CLI) | 1 | not started | 🔴 |
 | 3 | Weekly digest "What changed in Office.js this week" (email + RSS) | 1 | not started | 🟡 |
 | 4 | Customer CI trigger: `repository_dispatch` / generic webhook + a GitHub Action template | 1.5 | not started | 🟠 |
 | 5 | Multi-region: crawl from 2–3 locations (EU/US/Asia), compare regions | 1.5 | not started | 🟡 |
@@ -15,15 +14,9 @@ An index of work agreed in `TECH.md` but not done. Unlike [`../changelog/changel
 | 8 | Discord / Teams / Telegram | — | not started | 🟡 |
 | 9 | Proxy Umami through the own domain (`/stats/*`) if ad blockers cut the stats | — | only if numbers look low | 🟡 |
 | 10 | CDN incidents: show short outages (e.g. a file 404 on most edges for one run) as their own events | 1 | not started | 🟠 nobody else records these |
-| 11 | `/reference` hub: "Recently changed" block, "new" marker, pagination or collapsed namespaces | — | not started | 🟡 needed once a big build adds many types |
+| 11 | `/reference` hub at scale: pagination or collapsed namespaces, a short cache in `listApiTypes` | — | not started | 🟡 once a big build adds hundreds of types |
 
-Order: **1 → 4**, the rest as signals come in.
-
-## 1. Watchlist UI
-
-The model exists: `subscribers.watchItems[] = { pattern, hosts }`, `minSeverity`; matching —
-`backend/src/analysis/watchlist.js`. Missing: a settings page reached by the token from emails (like
-`/unsubscribe`) and write endpoints that validate patterns.
+Order: **4** next, the rest as signals come in.
 
 ## 10. CDN incidents
 
@@ -44,14 +37,9 @@ is abandoned after 24 h without an alert and is hidden on the site (`docs/archit
 
 ## 11. `/reference` hub at scale
 
-Today (`frontend/app/reference/page.js`) the hub lists every changed type on one page, grouped by namespace
-(alphabetical), newest first inside a namespace. Fine for a dozen types; a build that ships a new requirement
-set can add hundreds at once. Missing:
+Built on 2026-11-20 (`frontend/app/reference/page.js`): the hub is grouped by build, newest first, with a
+"new" marker and a "Documented only" filter. Still missing once a build adds hundreds of types:
 
-- **"Recently changed"** — the ~10 freshest types across namespaces above the sections. Returning visitors
-  look for what is new, not for an alphabetical section; it also gives fresh type pages a link from the top
-  of the hub.
-- **A "new" marker** on types first seen in the last few days, so a fresh row does not get lost among old ones.
 - **Pagination or collapsed namespaces** once the page gets long; `/api/types` (`listApiTypes`) recomputes the
   whole list on every request, so a large catalogue may also need a short cache there.
 - The hub has no live updates (`LiveRefresh`): new types appear on the next page load. Add it if the page

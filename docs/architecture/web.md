@@ -18,6 +18,7 @@ Code: `backend/src/web/server.js` (Fastify, routes), `queries.js` (read models),
 | `GET /api/live` | Server-Sent Events, see below | `/api/*` |
 | `GET /rss.xml` | RSS 2.0, the 50 newest releases (one item per track and build) | `/rss.xml` |
 | `POST /api/subscribe`, `GET\|POST /confirm`, `GET\|POST /unsubscribe` | Subscriptions; GET only shows a page with a button, POST changes state ([`alerts.md`](alerts.md)) | yes |
+| `GET\|POST /api/settings?token=…` | A subscriber's channels, `minSeverity` and watchlist, for `/settings` ([`alerts.md`](alerts.md)) | yes |
 
 ## The single source of numbers
 

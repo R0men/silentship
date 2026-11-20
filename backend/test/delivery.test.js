@@ -261,8 +261,10 @@ describe("subscription links", () => {
   });
 
   it("does not unsubscribe on GET; the button and RFC 8058 one-click POST do", async () => {
-    await app.inject({ method: "GET", url: "/unsubscribe?token=tok" });
+    const page = await app.inject({ method: "GET", url: "/unsubscribe?token=tok" });
     expect((await col.subscribers.findOne({ token: "tok" })).unsubscribedAt).toBeNull();
+    // Fewer emails instead of none; also reaches subscribers whose emails predate "Manage alerts".
+    expect(page.body).toContain('href="https://example.test/settings#token=tok"');
 
     const button = await app.inject({
       method: "POST",
@@ -284,6 +286,47 @@ describe("subscription links", () => {
     expect((await col.subscribers.findOne({ token: "tok" })).unsubscribedAt).not.toBeNull();
   });
 
+  it("reads and saves alert settings by the email token; the alert links them", async () => {
+    const get = await app.inject({ method: "GET", url: "/api/settings?token=tok" });
+    expect(get.statusCode).toBe(200);
+    expect(get.json()).toMatchObject({ email: "dev@example.test", channels: ["prod", "beta"], minSeverity: "low", watchItems: [] });
+
+    const save = (payload) => app.inject({ method: "POST", url: "/api/settings?token=tok", payload });
+    const ok = await save({
+      channels: ["beta", "prod", "beta"],
+      minSeverity: "medium",
+      watchItems: [
+        { pattern: "Excel.Range.*", hosts: ["excel"] },
+        { pattern: " Office.context.ui.displayDialogAsync ", hosts: [] },
+        { pattern: "excel.range.*", hosts: ["excel"] }, // same as the first, case aside
+        { pattern: "", hosts: [] },
+      ],
+    });
+    expect(ok.statusCode).toBe(200);
+    const stored = await col.subscribers.findOne({ token: "tok" });
+    expect(stored).toMatchObject({
+      channels: ["prod", "beta"],
+      minSeverity: "medium",
+      watchItems: [
+        { pattern: "Excel.Range.*", hosts: ["excel"] },
+        { pattern: "Office.context.ui.displayDialogAsync", hosts: [] },
+      ],
+    });
+
+    expect((await save({ channels: [], minSeverity: "low" })).json().error).toBe("invalid_channels");
+    expect((await save({ channels: ["prod"], minSeverity: "critical" })).json().error).toBe("invalid_severity");
+    expect((await save({ channels: ["prod"], minSeverity: "low", watchItems: [{ pattern: "Excel.Range; drop" }] })).json())
+      .toMatchObject({ error: "invalid_pattern" });
+    expect((await save({ channels: ["prod"], minSeverity: "low", watchItems: [{ pattern: "Excel.Range", hosts: ["linux"] }] })).statusCode)
+      .toBe(400);
+    expect((await app.inject({ method: "GET", url: "/api/settings?token=nope" })).statusCode).toBe(404);
+
+    await col.subscribers.updateOne({ token: "tok" }, { $set: { unsubscribedAt: at(70) } });
+    expect((await app.inject({ method: "GET", url: "/api/settings?token=tok" })).statusCode).toBe(410);
+    await col.subscribers.updateOne({ token: "tok" }, { $set: { unsubscribedAt: null, confirmedAt: null } });
+    expect((await save({ channels: ["prod"], minSeverity: "low" })).statusCode).toBe(403);
+  });
+
   const subscribe = (payload) => app.inject({ method: "POST", url: "/api/subscribe", payload });
 
   it("tells a subscribed address it is already subscribed instead of staying silent", async () => {
@@ -291,6 +334,8 @@ describe("subscription links", () => {
     expect((await subscribe({ email: "dev@example.test" })).json()).toEqual({ ok: true });
     expect(sent.map((m) => m.subject)).toEqual(["You're already subscribed to silentship alerts"]);
     expect(sent[0].text).toContain("/unsubscribe?token=tok");
+    expect(sent[0].text).toContain("https://example.test/settings#token=tok");
+    expect(sent[0].html).toContain("Manage alerts");
   });
 
   it("adds beta to a subscribed address only after the confirm button", async () => {

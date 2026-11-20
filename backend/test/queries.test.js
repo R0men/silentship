@@ -163,5 +163,14 @@ describe("API type pages", () => {
       kinds: ["removed"],
       severity: "high",
     });
+    // Per build, newest first, with both tracks on one entry.
+    const range = types.find((t) => t.type === "Excel.Range");
+    expect(range.builds.length).toBeGreaterThan(0);
+    expect(range.builds[0]).toMatchObject({ channels: ["prod", "beta"], kinds: ["removed"], severity: "high" });
+    expect(typeof range.builds[0].documented).toBe("boolean");
+    for (const t of types) {
+      const dates = t.builds.map((b) => +new Date(b.firstSeenAt));
+      expect(dates).toEqual([...dates].sort((x, y) => y - x));
+    }
   });
 });

@@ -29,8 +29,8 @@ export default function Privacy() {
       <h2>What we collect</h2>
       <ul>
         <li>
-          <b>Your email address</b>, when you subscribe, plus the channels you chose (production, beta). If you ask
-          us to narrow your alerts to the APIs your add-in uses, we also keep that list.
+          <b>Your email address</b>, when you subscribe, plus the settings you choose: channels (production, beta), the
+          minimum severity and the APIs on your watchlist (on the alert settings page linked from every email).
         </li>
         <li>
           <b>Timestamps</b> of when you subscribed, confirmed and unsubscribed, and when we sent confirmation emails (so

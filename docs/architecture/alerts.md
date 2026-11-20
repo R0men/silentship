@@ -1,6 +1,8 @@
 # Subscriptions, watchlist and alerts
 
-Code: `POST /api/subscribe`, `/confirm`, `/unsubscribe` — `backend/src/web/server.js`; sending —
+Code: `POST /api/subscribe`, `/confirm`, `/unsubscribe`, `GET|POST /api/settings` — `backend/src/web/server.js`;
+validation of settings — `backend/src/notify/settings.js`; the settings page — `frontend/app/settings/page.js`,
+`frontend/components/Settings.js`; sending —
 `backend/src/notify/alerts.js` (`notifyPending`, `flushDeliveries`, `pruneUnconfirmed`, `sendPreviewEmails`); delivery —
 `backend/src/notify/senders.js`; email HTML — `backend/src/notify/email-templates.js`; matching —
 `backend/src/analysis/watchlist.js`.
@@ -8,7 +10,8 @@ Code: `POST /api/subscribe`, `/confirm`, `/unsubscribe` — `backend/src/web/ser
 ## Subscription (double opt-in)
 
 - The form (`frontend/components/Subscribe.js`) sends `{ email, beta, source }`. `beta: true` → channels `prod,beta`,
-  otherwise `prod`. `minSeverity` defaults to `low`; there is no UI for it or for the watchlist yet.
+  otherwise `prod`. `minSeverity` defaults to `low`; the subscriber changes it, the channels and the watchlist on `/settings`
+  (below).
 - `source` — where the subscriber came from, one word stored on the first submit only (`signupSource` in
   `lib/analytics.js` and again in `server.js`): the page's `utm_source`, else the domain of an outside
   referrer, else `direct`; lower case, `[a-z0-9._-]`, ≤ 64. No IP, no URL (`/privacy` says so).
@@ -37,10 +40,26 @@ Code: `POST /api/subscribe`, `/confirm`, `/unsubscribe` — `backend/src/web/ser
   clients from the `List-Unsubscribe` + `List-Unsubscribe-Post` headers of every alert) gets a plain 200;
   the button gets a redirect to `/?notice=unsubscribed`.
 
+## Settings page
+
+Every email links "Manage alerts" next to "Unsubscribe": `/settings#token=…` (`settingsUrl` in
+`email-templates.js`). The token is in the **fragment**, so the browser never sends it to the server, to
+nginx logs, to Umami (`data-exclude-hash`) or in a `Referer`; the static page reads it and calls
+`GET /api/settings?token=…` (email, channels, `minSeverity`, `watchItems`, the host list) and
+`POST /api/settings?token=…` with `{ channels, minSeverity, watchItems }`. 404 for an unknown token, 410 for an
+unsubscribed address, 403 before confirmation. `parseSettings` (`notify/settings.js`) validates: channels a
+non-empty subset of `prod`, `beta`; `minSeverity` one of `low`, `medium`, `high`; at most 50 patterns of
+dotted identifiers with an optional `.*` (≤ 120 characters), hosts from `WATCH_HOSTS`; empty rows and
+duplicates (case aside) are dropped. The token proves the inbox, so adding beta here needs no second
+confirmation (unlike the form, which anyone can submit for any address). Subscribers from before the page
+existed have the same token; their older emails lack the link, so the unsubscribe page (`GET /unsubscribe`)
+offers it too: "Too many emails? Only get alerts for the APIs you use". The page is `noindex`, out of the
+sitemap and `Referrer-Policy: no-referrer`.
+
 ## Watchlist
 
 An entry is a `pattern` (`Office.context.ui.displayDialogAsync`, `Excel.Range.*`) plus an optional host
-filter (`excel`, `outlook`). For now it is added from the CLI only:
+filter (`excel`, `word`, …). Subscribers edit it on `/settings`; the CLI still works for the operator:
 
 ```sh
 npm run watch -w backend -- you@company.com "Excel.Range.*" excel

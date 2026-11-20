@@ -6,7 +6,7 @@ import { flagsChangeNotice } from "../crawler/loader.js";
 import { hostTypeOf } from "../crawler/manifest.js";
 import { CONFIRM_RUNS } from "../pipeline/rollouts.js";
 import { apiChangesLine, countChanges, listGroups, plural } from "../web/queries.js";
-import { alertEmail, confirmEmail, rollbackEmail, SUPPORT_URL } from "./email-templates.js";
+import { alertEmail, confirmEmail, rollbackEmail, settingsUrl, SUPPORT_URL } from "./email-templates.js";
 import { postSlack, sendEmail } from "./senders.js";
 
 /** One entry per API path, listing the host files it changed in; most severe first. */
@@ -291,6 +291,7 @@ function renderAlert(ctx, { changes, severity, unsubscribe, watched, update = fa
       "",
       ctx.url,
       "",
+      `Manage alerts: ${settingsUrl(unsubscribe)}`,
       `Unsubscribe: ${unsubscribe}`,
       `Support silentship: ${SUPPORT_URL}`,
     ].join("\n"),
@@ -427,6 +428,7 @@ function renderRollback(ctx, items, { changes, unsubscribe, watched }) {
       "",
       ctx.url,
       "",
+      `Manage alerts: ${settingsUrl(unsubscribe)}`,
       `Unsubscribe: ${unsubscribe}`,
       `Support silentship: ${SUPPORT_URL}`,
     ].join("\n"),

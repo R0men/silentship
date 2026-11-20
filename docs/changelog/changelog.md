@@ -32,6 +32,8 @@
   - `[Style]` Release verdict counts only the changes that carry the severity; "Implementation" explained
   - `[Docs]` Privacy and README promise only what exists; notes on 16.0.20710 and 16.0.20626/20702
   - `[Infra]` Umami ignores the URL hash; Next.js 16.4.6; fast-uri fix
+  - `[Feature]` Alert settings on `/settings`: channels, minimum severity, watchlist; "Manage alerts" in every email
+  - `[Feature]` `/reference` hub grouped by build with a "Documented only" filter; latest notes on the home page
 
 - **2026-11-06** — [2026-11-06.md](2026-11-06.md)
   - `[Bug Fix]` A rollout completes only after 6 runs on 12 different edges (or 36 runs in any case)

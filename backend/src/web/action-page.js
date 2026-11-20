@@ -5,7 +5,7 @@ import { html } from "../util/html.js";
  * Links, Mimecast, …) open every link in a message to scan it, so a GET must never change a subscription:
  * it only shows this page, and the button POSTs back to the same URL.
  */
-export function actionPage({ title, text, button, action }) {
+export function actionPage({ title, text, button, action, aside }) {
   return html`<!doctype html>
     <html lang="en">
       <head>
@@ -43,6 +43,13 @@ export function actionPage({ title, text, button, action }) {
             margin: 0 0 24px;
             color: #8d8f98;
           }
+          .aside {
+            margin: 28px 0 0;
+            font-size: 14px;
+          }
+          .aside a {
+            color: #f4f4f5;
+          }
           button {
             padding: 12px 22px;
             border: 0;
@@ -61,6 +68,7 @@ export function actionPage({ title, text, button, action }) {
           <form method="post" action="${action}">
             <button type="submit">${button}</button>
           </form>
+          ${aside ? html`<p class="aside">${aside.text} <a href="${aside.href}">${aside.link}</a></p>` : ""}
         </main>
       </body>
     </html>`.value;

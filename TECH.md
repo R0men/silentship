@@ -95,7 +95,7 @@ The loader picks the host file from `_host_Info` (from `window.external.GetHostI
      on Windows and Mac only, `WordApiOnline` and `ExcelApiOnline` on the web only.
 4. **Watchlist:** a subscriber lists the APIs their add-in uses (`Office.context.ui.displayDialogAsync`,
    `Excel.Range.*`) and is alerted only about changes that touch them — the main defence against noise.
-   Today entries are added from the CLI (`npm run watch`); there is no UI yet.
+   Subscribers edit it on `/settings` (linked from every email), with channels and the minimum severity.
    Without a watchlist, email goes out only for rollouts that changed the public API or are High, and only
    once a version has been seen in two runs: a build with zero API changes is noise for add-in developers,
    and a one-run sighting is a short CDN incident rather than a release (kept in the data, see PLAN).
@@ -135,7 +135,7 @@ archive on the server and is never committed here; tests use synthetic fixtures.
 | Phase | Scope | State |
 |---|---|---|
 | 0 | Crawler, build stamp, public changelog, RSS | Done |
-| 1 | API-surface diff, severity, watchlist, Slack/email, beta channel | Done, except the watchlist UI |
+| 1 | API-surface diff, severity, watchlist, Slack/email, beta channel | Done |
 | 1.5 | Customer CI trigger + GitHub Action template, multi-region | Not started |
 | 2 | Playwright bisection, issue correlation | On demand |
 

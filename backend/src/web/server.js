@@ -5,6 +5,7 @@ import { db } from "../db.js";
 import { SEVERITY_RANK } from "../analysis/diff.js";
 import { alreadySubscribedEmail, confirmEmail, welcomeEmail } from "../notify/email-templates.js";
 import { sendEmail } from "../notify/senders.js";
+import { parseSettings, WATCH_HOSTS } from "../notify/settings.js";
 import { esc } from "../util/html.js";
 import {
   apiChangesLine,
@@ -282,6 +283,14 @@ export async function buildServer() {
       text: `Stop Office.js alerts to ${sub.email}.`,
       button: "Unsubscribe",
       action: `/unsubscribe?token=${encodeURIComponent(sub.token)}`,
+      // Too many emails? Fewer may do. Also the way in for emails sent before "Manage alerts" existed.
+      ...(sub.confirmedAt && {
+        aside: {
+          text: "Too many emails?",
+          link: "Only get alerts for the APIs you use",
+          href: `${config.publicUrl}/settings#token=${sub.token}`,
+        },
+      }),
     });
   });
 
@@ -298,6 +307,42 @@ export async function buildServer() {
     }
     if (String(req.body ?? "").includes("List-Unsubscribe=One-Click")) return reply.code(200).send({ ok: true });
     return notice(reply, sub ? "unsubscribed" : "invalid-link");
+  });
+
+  // Alert settings, reached by the token in every email (like /unsubscribe): channels, minimum severity and
+  // the watchlist. The token proves the inbox, so a new channel needs no second confirmation here.
+  const settingsOf = (sub) => ({
+    email: sub.email,
+    channels: sub.channels ?? ["prod"],
+    minSeverity: sub.minSeverity ?? "low",
+    watchItems: (sub.watchItems ?? []).map((w) => ({ pattern: w.pattern, hosts: w.hosts ?? [] })),
+    hosts: WATCH_HOSTS,
+  });
+  async function settingsSubscriber(req, reply) {
+    const sub = await subscriberByToken(req);
+    if (!sub) return void reply.code(404).send({ error: "invalid_link" });
+    if (sub.unsubscribedAt) return void reply.code(410).send({ error: "unsubscribed" });
+    if (!sub.confirmedAt) return void reply.code(403).send({ error: "not_confirmed" });
+    return sub;
+  }
+
+  app.get("/api/settings", async (req, reply) => {
+    const sub = await settingsSubscriber(req, reply);
+    if (!sub) return reply;
+    return reply.header("cache-control", "no-store").send(settingsOf(sub));
+  });
+
+  app.post("/api/settings", { bodyLimit: 16384 }, async (req, reply) => {
+    const sub = await settingsSubscriber(req, reply);
+    if (!sub) return reply;
+    const parsed = parseSettings(req.body);
+    if (parsed.error) return reply.code(400).send(parsed);
+    const { subscribers } = await db();
+    await subscribers.updateOne(
+      { _id: sub._id },
+      { $set: { ...parsed.settings, settingsUpdatedAt: new Date() }, $unset: { pendingChannels: "" } },
+    );
+    return reply.header("cache-control", "no-store").send(settingsOf({ ...sub, ...parsed.settings }));
   });
 
   // Live updates (Server-Sent Events): a fresh snapshot whenever a crawl starts or finishes.

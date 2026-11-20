@@ -20,7 +20,11 @@ const nextConfig = {
   },
   // Legal boilerplate is kept out of search results by a header too, not only by the page's robots meta.
   async headers() {
-    return [{ source: "/privacy", headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }] }];
+    return [
+      { source: "/privacy", headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }] },
+      // A subscriber's own page, reached from an email.
+      { source: "/settings", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+    ];
   },
   // The browser only ever talks to this origin; Next forwards API calls to the backend.
   async rewrites() {

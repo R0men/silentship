@@ -19,6 +19,15 @@ const C = {
   accent: "#7c8cff",
 };
 /** Confirmation and welcome emails go out with Reply-To set (MAIL_REPLY_TO); this asks for the reply. */
+/**
+ * The settings page for the same token as an unsubscribe link. The token goes in the fragment
+ * (`/settings#token=…`): browsers never send it to the server, to logs, to analytics or in a Referer. The page
+ * reads it and calls /api/settings (web/server.js).
+ */
+export const settingsUrl = (unsubscribe) => String(unsubscribe ?? "").replace("/unsubscribe?token=", "/settings#token=");
+const manageLink = (unsubscribe) =>
+  html`<a href="${settingsUrl(unsubscribe)}" style="color:${C.muted};text-decoration:underline;">Manage alerts</a> ·`;
+
 const REPLY_LINE = "Reply to this email and tell me what you build with Office.js. I read every reply.";
 /** Optional support link in every email's footer, in the footer's faint colour. */
 export const SUPPORT_URL = "https://ko-fi.com/silentship";
@@ -180,11 +189,12 @@ export function welcomeEmail({ channels, unsubscribe }) {
   `;
   return {
     subject: "You're subscribed to silentship alerts",
-    text: `silentship now watches the Office.js ${watching} for you. The next email arrives when Microsoft starts rolling out a build that changes the API.\n\n${REPLY_LINE}\n\nUnsubscribe: ${unsubscribe}`,
+    text: `silentship now watches the Office.js ${watching} for you. The next email arrives when Microsoft starts rolling out a build that changes the API.\n\n${REPLY_LINE}\n\nManage alerts: ${settingsUrl(unsubscribe)}\nUnsubscribe: ${unsubscribe}`,
     html: layout({
       preheader: "Alerts are on. Tell me what you build with Office.js.",
       body,
       footer: html`You get this because you confirmed silentship alerts.
+        ${manageLink(unsubscribe)}
         <a href="${unsubscribe}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a> in one click.`,
     }),
   };
@@ -206,12 +216,13 @@ export function alreadySubscribedEmail({ channels, unsubscribe }) {
     </p>
     <p style="margin:0;font:400 13px/1.6 ${SANS};color:${C.faint};">
       Want to stop them?
+      ${manageLink(unsubscribe)}
       <a href="${unsubscribe}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a>.
     </p>
   `;
   return {
     subject: "You're already subscribed to silentship alerts",
-    text: `This address already gets silentship alerts for the Office.js ${watching}. Nothing to do.\n\nUnsubscribe: ${unsubscribe}`,
+    text: `This address already gets silentship alerts for the Office.js ${watching}. Nothing to do.\n\nManage alerts: ${settingsUrl(unsubscribe)}\nUnsubscribe: ${unsubscribe}`,
     html: layout({
       preheader: "This address already gets Office.js CDN change alerts.",
       body,
@@ -345,6 +356,7 @@ export function rollbackEmail({
     preheader: `${title} pulled back on ${channelName} after reaching ~${pct(peakShare)} of edges.`,
     body,
     footer: html`You get this because you subscribed to silentship alerts for the ${subscribedLabel(channel)} channel.
+      ${manageLink(unsubscribe)}
       <a href="${unsubscribe}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a> in one click.`,
   });
 }
@@ -452,6 +464,7 @@ export function alertEmail({
       : `${title} on ${channelName}: ${changesLine}; ${files} file(s), ~${pct(share)} of edges.`,
     body,
     footer: html`You get this because you subscribed to silentship alerts for the ${subscribedLabel(channel)} channel.
+      ${manageLink(unsubscribe)}
       <a href="${unsubscribe}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a> in one click.`,
   });
 }
