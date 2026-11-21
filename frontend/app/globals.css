@@ -224,6 +224,13 @@ main {
   color: var(--muted);
   letter-spacing: 0.01em;
 }
+/* The hero's eyebrow sits inside its h1 (components/Headline.js): a line of its own, in the eyebrow's type. */
+.hero-title .eyebrow {
+  display: flex;
+  width: fit-content;
+  font-weight: 400;
+  line-height: 1.4;
+}
 h1 {
   margin: 0 0 24px;
   font-size: clamp(36px, 4.8vw, 64px);
@@ -742,6 +749,13 @@ h2 {
   font-weight: 500;
   font-size: clamp(34px, 5.4vw, 64px);
   letter-spacing: -0.05em;
+}
+/* "Office.js" before the build number: the product, quieter than the number people came for. */
+.release-build-product {
+  font-family: var(--sans);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--muted);
 }
 .note {
   max-width: 640px;

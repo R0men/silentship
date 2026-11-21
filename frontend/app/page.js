@@ -18,8 +18,9 @@ export const metadata = {
   ...pageMeta({
     path: "/",
     title: TITLE,
+    // ≤160 characters: search results cut the rest.
     description:
-      "Live changelog of Office.js on both CDN endpoints, appsforoffice.microsoft.com and officeapis.public.onecdn.static.microsoft: new builds, their share of edges, changed host files and API-surface diffs.",
+      "Live Office.js changelog: every new build on Microsoft's CDN, how far it has rolled out and which APIs it added, removed or changed. Checked every 10 minutes.",
   }),
   title: { absolute: TITLE },
 };

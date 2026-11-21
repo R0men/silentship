@@ -28,6 +28,10 @@
 - **2026-11-21** — [2026-11-21.md](2026-11-21.md)
   - `[Bug Fix]` Microsoft's docs went back to appsforoffice: OneCDN is no longer called recommended, the loader-flags notice links our endpoints note
   - `[Feature]` Notes show when they were updated
+  - `[Feature]` SEO: a beta page with the same API changes as production points to it; undocumented API pages are `noindex`
+  - `[Bug Fix]` SEO: titles and descriptions fit search results; `/reference` names a single change by its path
+  - `[Feature]` SEO: "Office.js changelog" in the home h1, "Office.js <build>" on release pages, own link previews, HSTS
+  - `[Docs]` SEO rules and checks; IndexNow planned
 
 - **2026-11-20** — [2026-11-20.md](2026-11-20.md)
   - `[Bug Fix]` A generated `set`/`toJSON` that changed with a new or removed member is Low

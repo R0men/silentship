@@ -1,7 +1,7 @@
 ---
 title: What the new Office.js CDN endpoint actually changes
 seoTitle: New Office.js CDN endpoint vs. appsforoffice: what changes
-description: officeapis.public.onecdn.static.microsoft serves the same Office.js as appsforoffice.microsoft.com, but its loader drops MicrosoftAjax and turns on Trusted Types.
+description: officeapis.public.onecdn.static.microsoft serves the same Office.js as appsforoffice, but its loader drops MicrosoftAjax and enables Trusted Types.
 keywords: Office.js CDN, officeapis.public.onecdn.static.microsoft, appsforoffice.microsoft.com, MicrosoftAjax, Trusted Types, Office.actions.associate, isOsfSecurityDefaultsEnabled, Office add-ins
 date: 2026-10-20
 updated: 2026-11-21

@@ -148,6 +148,17 @@ export function endpointProgress(g) {
     .join(" · ");
 }
 
+/** What happened to one named API, after its path. */
+const SINGLE_PHRASE = {
+  removed: "removed",
+  added: "added",
+  renamed: "renamed",
+  arityChanged: "parameters changed",
+  kindChanged: "shape changed",
+  enumChanged: "enum values changed",
+  bodyChanged: "implementation changed",
+};
+
 const NODE_PLURAL = { property: "properties", function: "functions", class: "classes", enum: "enums", namespace: "namespaces" };
 
 /**
@@ -155,9 +166,15 @@ const NODE_PLURAL = { property: "properties", function: "functions", class: "cla
  * "Latest: Word.LineFormat lost 8 WordApiDesktop 1.3 properties in 16.0.20619 (Oct 2026)."
  */
 export function latestChangeText(c) {
-  const noun = c.count === 1 ? (c.node ?? "member") : (NODE_PLURAL[c.node] ?? "members");
-  const what = [c.count, c.apiSet, noun].filter(Boolean).join(" ");
-  const change = c.kind === "removed" ? `${c.type} lost ${what}` : `${c.type}: ${what} ${KIND_PHRASE[c.kind] ?? c.kind}`;
+  let change;
+  if (c.path) {
+    // One change: named by its path, "Office.ribbon.requestUpdate (RibbonApi 1.1) implementation changed".
+    change = `${c.path}${c.apiSet ? ` (${c.apiSet})` : ""} ${SINGLE_PHRASE[c.kind] ?? c.kind}`;
+  } else {
+    const noun = c.count === 1 ? c.node || "member" : (NODE_PLURAL[c.node] ?? "members");
+    const what = [c.count, c.apiSet, noun].filter(Boolean).join(" ");
+    change = c.kind === "removed" ? `${c.type} lost ${what}` : `${c.type}: ${what} ${KIND_PHRASE[c.kind] ?? c.kind}`;
+  }
   const month = new Date(c.firstSeenAt).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
   return `Latest: ${change} in ${shortBuild(c.build)} (${month}).`;
 }

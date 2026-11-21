@@ -113,7 +113,10 @@ export default function ChannelStatus({ initial }) {
   const overview = data?.overview;
   if (!overview) return <p className="muted status-down">Monitor API is unreachable right now.</p>;
   return (
-    <section className="status" id="status">
+    <section className="status" id="status" aria-labelledby="status-title">
+      <h2 className="sr-only" id="status-title">
+        Live status of both channels
+      </h2>
       {overview.channels.map((c) => (
         <Channel key={c.channel} c={c} />
       ))}

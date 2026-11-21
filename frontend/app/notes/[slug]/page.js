@@ -4,7 +4,7 @@ import JsonLd from "@/components/JsonLd";
 import Subscribe from "@/components/Subscribe";
 import { breadcrumbs, officeJs, techArticle } from "@/lib/jsonLd";
 import { fmtDay, getNote, listNotes } from "@/lib/notes";
-import { NOTES_RSS, pageMeta } from "@/lib/site";
+import { NOTES_RSS, ownImage, pageMeta } from "@/lib/site";
 
 // Notes are files in the repository: every page is built ahead, an unknown slug is a 404.
 export const dynamicParams = false;
@@ -14,7 +14,7 @@ export function generateStaticParams() {
 }
 
 // The note's own preview, rendered by ./opengraph-image.js.
-const ogImage = (note) => ({ url: `${note.path}/opengraph-image`, width: 1200, height: 630, alt: note.title });
+const ogImage = (note) => ownImage(note.path, note.title);
 
 export async function generateMetadata({ params }) {
   const note = getNote((await params).slug);

@@ -165,4 +165,27 @@ describe("releases", () => {
       onecdn: { channel: "onecdn-prod", build: "16.0.5" },
     });
   });
+
+  // Last: adds beta releases of production builds, which the tests above do not expect.
+  it("make production canonical for a beta release with the same API changes", async () => {
+    const { rollouts, apiChanges } = await (await import("../src/db.js")).db();
+    await rollouts.insertMany([
+      // 16.0.6 on beta: the same (no) API changes as production.
+      roll({ channel: "beta", group: "16.0.6", path: "excel-web-16.00.js", toSha: "x6", firstMin: 58 }),
+      // 16.0.7 on beta: one API change production does not have.
+      roll({ channel: "beta", group: "16.0.7", path: "excel-web-16.00.js", toSha: "x7", firstMin: 118, apiChangeCount: 1 }),
+    ]);
+    const beta7 = await rollouts.findOne({ channel: "beta", group: "16.0.7" });
+    await apiChanges.insertOne({ rolloutId: beta7._id, file: "excel-web-16.00.js", path: "Excel.Foo", kind: "added", severity: "low" });
+
+    expect((await q.getRelease("beta", "16.0.6")).canonicalTrack).toBe("prod");
+    expect((await q.getRelease("beta", "16.0.7")).canonicalTrack).toBeNull();
+    // No production release of this build: beta stays its own page.
+    expect((await q.getRelease("beta", "16.0.9")).canonicalTrack).toBeNull();
+    expect((await q.getRelease("prod", "16.0.6")).canonicalTrack).toBeNull();
+
+    const keys = (await q.sitemapReleases()).map((p) => `${p.channel}/${p.group}`);
+    expect(keys).toContain("beta/16.0.7");
+    expect(keys).not.toContain("beta/16.0.6");
+  });
 });

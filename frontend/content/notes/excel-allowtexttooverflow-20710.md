@@ -1,6 +1,6 @@
 ---
 title: "Office.js 16.0.20710: Excel data labels get allowTextToOverflow, ahead of the docs"
-seoTitle: "Office.js 16.0.20710: ChartDataLabel.allowTextToOverflow and what else changed"
+seoTitle: "Office.js 16.0.20710: ChartDataLabel.allowTextToOverflow"
 description: Office.js 16.0.20710 adds allowTextToOverflow to Excel chart data labels (ExcelApi 1.20, undocumented) and changes Office.ribbon.requestUpdate inside.
 keywords: Office.js 16.0.20710, Excel.ChartDataLabel, ChartDataLabels, allowTextToOverflow, ExcelApi 1.20, Excel add-ins, Office.js changelog
 date: 2026-11-20

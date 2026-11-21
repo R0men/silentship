@@ -12,21 +12,23 @@ import { pageMeta } from "@/lib/site";
 // New types appear after every rollout with API changes; never prerender at build time.
 export const dynamic = "force-dynamic";
 
-const TITLE = "Office.js API changelog: what changed in each CDN build";
+const TITLE = "Office.js API changelog: changes in each CDN build";
 const SUMMARY = "Every Office.js API added, removed or renamed on Microsoft's CDN, per build.";
 
 /** One backend call per request, shared by the metadata and the page. */
 const load = cache(() => apiGetOr("/api/types", { types: [], latest: null }));
 
 /** The newest change that matters comes first, so the snippet updates itself with every such build. */
-const describe = (latest) => (latest ? `${latestChangeText(latest)} ${SUMMARY}` : SUMMARY);
+// The summary goes when both would not fit in a search result (160 characters).
+const describe = (latest) => {
+  if (!latest) return SUMMARY;
+  const text = latestChangeText(latest);
+  return text.length + 1 + SUMMARY.length <= 160 ? `${text} ${SUMMARY}` : `${text} Every Office.js API change on the CDN, per build.`;
+};
 
 export async function generateMetadata() {
   const { latest } = await load();
-  return {
-    ...pageMeta({ path: "/reference", title: TITLE, description: describe(latest) }),
-    title: { absolute: `${TITLE} | silentship` },
-  };
+  return pageMeta({ path: "/reference", title: TITLE, description: describe(latest) });
 }
 
 const DAY = 24 * 60 * 60 * 1000;

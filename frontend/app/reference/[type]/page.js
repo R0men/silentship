@@ -12,6 +12,7 @@ import {
   errorMessages,
   fileLabel,
   followsText,
+  indexedType,
   loweredText,
   pageDescription,
   pageTitle,
@@ -21,7 +22,7 @@ import {
 } from "@/lib/apiType";
 import { apiStatusLabel, fmtDate, groupTitle, KIND_LABEL, pct, STATUS_LABEL } from "@/lib/format";
 import { breadcrumbs, officeJs, techArticle } from "@/lib/jsonLd";
-import { pageMeta, SITE } from "@/lib/site";
+import { ownImage, pageMeta, SITE } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,13 @@ const load = cache(async (raw) => {
 export async function generateMetadata({ params }) {
   const { data } = await load((await params).type).catch(() => ({ data: null }));
   if (!data) return { title: "API not found", robots: { index: false } };
-  return pageMeta({ path: typeHref(data.type), type: "article", title: pageTitle(data), description: pageDescription(data) });
+  const path = typeHref(data.type);
+  const title = pageTitle(data);
+  return {
+    ...pageMeta({ path, type: "article", title, description: pageDescription(data), image: ownImage(path, title) }),
+    // Internals of Office.js: kept for readers and the hub, not offered to search engines (see indexedType).
+    ...(!indexedType(data.docs?.status) && { robots: { index: false, follow: true } }),
+  };
 }
 
 /** `code` spans in advice text, nothing else. */
@@ -60,6 +67,7 @@ function jsonLd(t, title, description) {
       datePublished: dates[0],
       dateModified: t.lastModified ?? dates.at(-1),
       about: { "@type": "Thing", name: t.type, isPartOf: officeJs() },
+      image: ownImage(typeHref(t.type), title).url,
     }),
     breadcrumbs([
       ["Office.js API changelog", "/reference"],

@@ -20,6 +20,18 @@ function latestPhrase(g) {
 }
 
 /**
+ * The line above the headline, inside the h1: "Office.js changelog" is what the page is, whatever the
+ * headline says about the current build, so the h1 keeps the phrase people search for.
+ */
+function Eyebrow({ dot = "dot-ok", children }) {
+  return (
+    <span className="eyebrow">
+      <span className={`dot ${dot}`} /> Office.js changelog · {children}{" "}
+    </span>
+  );
+}
+
+/**
  * The hero states what is happening on the CDN right now, with live numbers.
  * Wording is deliberate: we measure the share of CDN edge responses we sample, not of users. Users get a
  * new build the next time Office loads the add-in from an edge that has it.
@@ -38,11 +50,10 @@ export default function Headline({ initial }) {
   if (g) {
     return (
       <>
-        <p className="eyebrow">
-          <span className={`dot ${g.severity === "high" ? "dot-bad" : "dot-ok"}`} /> Rollout in progress ·{" "}
-          {channel === "prod" ? "production" : "beta"}
-        </p>
-        <h1>
+        <h1 className="hero-title">
+          <Eyebrow dot={g.severity === "high" ? "dot-bad" : "dot-ok"}>
+            rollout in progress · {channel === "prod" ? "production" : "beta"}
+          </Eyebrow>
           Office.js{" "}
           <span className="h-build" title={g.toBuild}>
             {shortBuild(g.toBuild)}
@@ -76,11 +87,9 @@ export default function Headline({ initial }) {
     const latest = prod.latest?.toBuild ? prod.latest : null;
     return (
       <>
-        <p className="eyebrow">
-          <span className="dot dot-ok" /> Watching the Office.js CDN · no rollout in progress
-        </p>
         {latest ? (
-          <h1>
+          <h1 className="hero-title">
+            <Eyebrow>no rollout in progress</Eyebrow>
             Latest: Office.js{" "}
             <span className="h-build" title={latest.toBuild}>
               {shortBuild(latest.toBuild)}
@@ -91,7 +100,8 @@ export default function Headline({ initial }) {
             </span>
           </h1>
         ) : (
-          <h1>
+          <h1 className="hero-title">
+            <Eyebrow>no rollout in progress</Eyebrow>
             Office.js{" "}
             <span className="h-build" title={prod.build}>
               {shortBuild(prod.build)}
@@ -123,10 +133,8 @@ export default function Headline({ initial }) {
 
   return (
     <>
-      <p className="eyebrow">
-        <span className="dot dot-ok" /> Live changelog of the Office.js CDN
-      </p>
-      <h1>
+      <h1 className="hero-title">
+        <Eyebrow>live from the CDN</Eyebrow>
         Know when Office.js changes
         <span className="muted-h"> — before your users do.</span>
       </h1>

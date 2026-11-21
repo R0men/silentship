@@ -15,11 +15,12 @@ import {
   pct,
   plural,
   releaseSummary,
+  shortBuild,
   STATUS_LABEL,
 } from "@/lib/format";
 import { listNotes } from "@/lib/notes";
 import { breadcrumbs, officeJs, techArticle } from "@/lib/jsonLd";
-import { ENDPOINTS_NOTE, pageMeta } from "@/lib/site";
+import { ENDPOINTS_NOTE, ownImage, pageMeta } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -29,28 +30,45 @@ async function load(params) {
   return apiGet(`/api/rollouts/${channel}/${encodeURIComponent(decodeURIComponent(group))}`);
 }
 
-/** Path, title and description: one source for the metadata and the structured data. */
+const pathOf = (channel, group) => `/rollouts/${channel}/${encodeURIComponent(group)}`;
+
+/**
+ * Path, canonical, title and description: one source for the metadata and the structured data. A beta
+ * release with the same API changes as production names the production page as canonical.
+ */
 function describe(r) {
   const channel = channelLabel(r.channel).toLowerCase();
+  const changes = r.uniqueApiChanges
+    ? `${plural(r.uniqueApiChanges, "API change")} in ${r.apiChangeFiles} of ${plural(r.files, "host file")}`
+    : `no public API changes in ${plural(r.files, "host file")}`;
+  const state =
+    r.status === "complete"
+      ? "rollout complete"
+      : r.status === "abandoned"
+        ? "pulled back"
+        : `rolling out, on ${pct(r.share)} of sampled edges`;
+  const build = r.toBuild ? shortBuild(r.toBuild) : groupTitle(r);
   return {
-    path: `/rollouts/${r.channel}/${encodeURIComponent(r.group)}`,
-    title: `Office.js ${groupTitle(r)} rollout (${channel})`,
-    description: `Office.js ${groupTitle(r)}: ${apiChangesText(r).replace(/^No/, "no")}, on ${pct(r.status === "complete" ? 1 : r.share)} of sampled CDN edges across ${plural(r.files, "file")}. First seen ${fmtDate(r.firstSeenAt)}.`,
+    path: pathOf(r.channel, r.group),
+    canonical: pathOf(r.canonicalTrack ?? r.channel, r.group),
+    title: `Office.js ${build} (${channel}): ${r.uniqueApiChanges ? plural(r.uniqueApiChanges, "API change") : "no API changes"}`,
+    description: `Office.js ${groupTitle(r)} on the ${channel} CDN: ${changes}, ${r.severity} severity; ${state}. First seen ${fmtDate(r.firstSeenAt)}.`,
   };
 }
 
 function jsonLd(r) {
-  const { path, title, description } = describe(r);
+  const { canonical, title, description } = describe(r);
   return [
     techArticle({
-      path,
+      path: canonical,
       headline: title,
       description,
       datePublished: r.firstSeenAt,
       dateModified: r.completedAt ?? r.lastSeenAt,
       about: officeJs(r.toBuild),
+      image: ownImage(canonical, title).url,
     }),
-    breadcrumbs([[title, path]]),
+    breadcrumbs([[title, canonical]]),
   ];
 }
 
@@ -187,7 +205,8 @@ function Summary({ r }) {
 export async function generateMetadata({ params }) {
   const r = await load(params).catch(() => null);
   if (!r) return { title: "Rollout not found", robots: { index: false } };
-  return pageMeta({ ...describe(r), type: "article" });
+  const { canonical, title, description } = describe(r);
+  return pageMeta({ path: canonical, title, description, type: "article", image: ownImage(canonical, title) });
 }
 
 export default async function RolloutPage({ params }) {
@@ -207,9 +226,18 @@ export default async function RolloutPage({ params }) {
         <ChannelTag channel={r.channel} />
         <span className={`rstatus rstatus-${r.status}`}>{STATUS_LABEL[r.status]}</span>
       </div>
-      <h1 className="release-build">{groupTitle(r)}</h1>
+      <h1 className="release-build">
+        <span className="release-build-product">Office.js </span>
+        {groupTitle(r)}
+      </h1>
       {r.fromBuilds.length > 0 && <p className="note">from {r.fromBuilds.join(", ")}</p>}
       <Summary r={r} />
+      {r.canonicalTrack && (
+        <p className="note">
+          Production got this build with the same API changes:{" "}
+          <Link href={pathOf(r.canonicalTrack, r.group)}>Office.js {groupTitle(r)} on production →</Link>
+        </p>
+      )}
       {r.flags.map((f) => (
         <FlagsNotice key={f.endpoint} flags={f} />
       ))}

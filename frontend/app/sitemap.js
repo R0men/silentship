@@ -1,5 +1,5 @@
 import { apiGet } from "@/lib/api";
-import { typeHref } from "@/lib/apiType";
+import { indexedType, typeHref } from "@/lib/apiType";
 import { listNotes } from "@/lib/notes";
 import { SITE_URL } from "@/lib/site";
 
@@ -18,7 +18,11 @@ export default async function sitemap() {
   const { rollouts, types = [] } = await apiGet("/api/sitemap");
   const newest = rollouts[0]?.lastModified ? new Date(rollouts[0].lastModified) : undefined;
   const notes = listNotes();
-  const latestNote = notes[0] ? new Date(notes[0].date) : undefined;
+  // An updated older note changes the list too.
+  const noteDays = notes.map((n) => n.updated ?? n.date).sort();
+  const latestNote = noteDays.length ? new Date(noteDays.at(-1)) : undefined;
+  // Undocumented types are noindex (indexedType); listing them would ask crawlers for pages they must drop.
+  const indexed = types.filter((t) => indexedType(t.docs));
   return [
     { url: `${SITE_URL}/`, lastModified: newest, changeFrequency: "hourly", priority: 1 },
     {
@@ -41,7 +45,7 @@ export default async function sitemap() {
       priority: r.channel === "prod" ? 0.8 : 0.6,
     })),
     // Only types changed by a confirmed rollout have a page; see /api/types.
-    ...types.map((t) => ({
+    ...indexed.map((t) => ({
       url: `${SITE_URL}${typeHref(t.type)}`,
       lastModified: t.lastModified ? new Date(t.lastModified) : undefined,
       changeFrequency: "weekly",

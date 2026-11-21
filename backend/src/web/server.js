@@ -139,7 +139,8 @@ export async function buildServer() {
   app.get("/api/sitemap", async () =>
     cached("sitemap", async () => {
       const [rollouts, types] = await Promise.all([sitemapReleases(), listApiTypes()]);
-      return { rollouts, types: types.map((t) => ({ type: t.type, lastModified: t.lastModified })) };
+      // `docs`: the frontend keeps undocumented types out of the sitemap (they are noindex).
+      return { rollouts, types: types.map((t) => ({ type: t.type, docs: t.docs?.status ?? null, lastModified: t.lastModified })) };
     }),
   );
 

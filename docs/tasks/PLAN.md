@@ -45,3 +45,13 @@ Built on 2026-11-20 (`frontend/app/reference/page.js`): the hub is grouped by bu
 - The hub has no live updates (`LiveRefresh`): new types appear on the next page load. Add it if the page
   becomes something people keep open.
 
+## 12. IndexNow
+
+Agreed on 2026-11-21, postponed. Tell Bing (and through it Copilot), Yandex and others about new pages the moment
+they appear instead of waiting for a crawl of the sitemap:
+
+- An `INDEXNOW_KEY` in `.env` (and `.env.example`, `docs/SETUP.md`); without it the feature is off.
+- The frontend serves the key as a text file (e.g. `/indexnow.txt`, passed as `keyLocation`).
+- The backend posts to `https://api.indexnow.org/indexnow` when a release is confirmed, completes or is pulled
+  back, and when a new API type page appears: the release page, its type pages, `/`, `/reference`. Failures are
+  logged and never retried in a loop.

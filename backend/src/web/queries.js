@@ -552,10 +552,30 @@ export async function getRelease(track, group) {
       onecdn?.flags && { endpoint: "onecdn", ...onecdn.flags },
     ].filter(Boolean),
     loader,
+    canonicalTrack: track === "beta" ? await sameAsProd(group, primary.apiChanges) : null,
   };
 }
 
-/** Every release page for the sitemap: rollout groups keyed by track, a build on both endpoints once. */
+/** A release's API changes as comparable keys. */
+const changeKeys = (changes) => [...new Set((changes ?? []).map((c) => `${c.path}\u0000${c.from ?? ""}\u0000${c.kind}`))].sort();
+
+/**
+ * "prod" when production has the same build with exactly the same API changes as this beta release: then
+ * both pages say the same thing and the production one is canonical (beta usually runs ahead and production
+ * gets the very build). null when production has not got it or its changes differ.
+ */
+async function sameAsProd(group, betaChanges) {
+  const prod = await getRelease("prod", group);
+  if (!prod) return null;
+  const a = changeKeys(betaChanges);
+  const b = changeKeys(prod.apiChanges);
+  return a.length === b.length && a.every((k, i) => k === b[i]) ? "prod" : null;
+}
+
+/**
+ * Every release page for the sitemap: rollout groups keyed by track, a build on both endpoints once. A beta
+ * release whose canonical page is production's (`canonicalTrack`) is left out.
+ */
 export async function sitemapReleases() {
   const byKey = new Map();
   for (const g of await sitemapGroups()) {
@@ -565,7 +585,11 @@ export async function sitemapReleases() {
     const lastModified = [prev?.lastModified, g.lastModified].filter(Boolean).sort((a, b) => b - a)[0] ?? null;
     byKey.set(key, { channel, group: g.group, lastModified });
   }
-  return [...byKey.values()];
+  const pages = [...byKey.values()];
+  const duplicate = await Promise.all(
+    pages.map(async (p) => p.channel === "beta" && Boolean((await getRelease("beta", p.group))?.canonicalTrack)),
+  );
+  return pages.filter((_, i) => !duplicate[i]);
 }
 
 /**
@@ -856,7 +880,9 @@ export async function latestNotableChange() {
       type: top[0].type,
       kind: top[0].kind,
       count: top.length,
-      node: only(top.map((c) => c.detail)),
+      // One change is named by its path ("Office.ribbon.requestUpdate"), several by their count.
+      path: top.length === 1 ? top[0].path : null,
+      node: only(top.map((c) => c.detail)) || null,
       apiSet: only(top.map((c) => c.apiSet)),
       build: r.toBuild,
       firstSeenAt: r.firstSeenAt,

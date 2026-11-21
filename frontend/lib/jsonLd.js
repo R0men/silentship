@@ -1,11 +1,11 @@
-import { SITE, SITE_URL } from "@/lib/site";
+import { OG_IMAGE, SITE, SITE_URL } from "@/lib/site";
 
 // schema.org builders shared by the pages; components/JsonLd.js renders them.
 
 const CONTEXT = "https://schema.org";
 const abs = (path) => `${SITE_URL}${path}`;
 
-export const PUBLISHER = { "@type": "Organization", name: SITE.name, url: abs("/") };
+export const PUBLISHER = { "@type": "Organization", name: SITE.name, url: abs("/"), logo: abs("/icon.svg") };
 
 export function website(description) {
   return { "@context": CONTEXT, "@type": "WebSite", name: SITE.name, url: abs("/"), description, publisher: PUBLISHER };
@@ -32,7 +32,8 @@ export function techArticle({ path, headline, description, datePublished, dateMo
     headline,
     description,
     ...(keywords && { keywords: keywords.join(", ") }),
-    ...(image && { image: abs(image) }),
+    // Google's Article guidelines ask for an image; the shared preview when the page has none of its own.
+    image: abs(image ?? OG_IMAGE.url),
     url: abs(path),
     mainEntityOfPage: abs(path),
     datePublished,

@@ -21,6 +21,9 @@ const nextConfig = {
   // Legal boilerplate is kept out of search results by a header too, not only by the page's robots meta.
   async headers() {
     return [
+      // HTTPS only from the first visit on (nginx redirects http already). No includeSubDomains or preload:
+      // both are hard to take back.
+      { source: "/:path*", headers: [{ key: "Strict-Transport-Security", value: "max-age=31536000" }] },
       { source: "/privacy", headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }] },
       // A subscriber's own page, reached from an email.
       { source: "/settings", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },

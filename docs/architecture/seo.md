@@ -17,15 +17,20 @@ become absolute. The variable is server-only: client components do not have it.
 Next merges metadata **shallowly**: a page that sets `alternates` or `openGraph` replaces the layout's whole
 object — including the root's file-based `opengraph-image`, which would then reach only `/`. So
 `pageMeta({ path, title, description, type })` builds them completely: canonical, RSS alternate, Open Graph
-(`siteName`, `locale`, `url`, `type`, the shared image with size and alt), Twitter `summary_large_image` with
+(`siteName`, `locale`, `url`, `type`, the page's image with size and alt), Twitter `summary_large_image` with
 the same image.
+
+**Lengths.** A title longer than 65 characters with the ` — silentship` suffix is set `absolute` by `pageMeta`:
+the suffix goes, not the page's own words. Descriptions stay within 160 characters (search results cut the rest):
+generated ones (`metaDescription` in `lib/apiType.js`, `describe` on rollout pages and `/reference`) drop optional
+sentences to fit; note descriptions are checked by hand.
 
 | Page | title | canonical | Other |
 |---|---|---|---|
-| `/` | `Office.js changelog: live CDN builds and API changes — silentship` (absolute) | `/` | JSON-LD `WebSite` |
-| `/rollouts/<channel>/<group>` | `Office.js <build> rollout (production\|beta) — silentship` | `/rollouts/<channel>/<group>` | `og:type=article`; description leading with unique API changes ("5 API changes in 19 files"), then share and files; JSON-LD `TechArticle` (about a `Thing` "Office.js <build>" — not `SoftwareApplication`, which Google rejects without offers or ratings; published = first seen, modified = completed/last seen) + `BreadcrumbList`; a missing rollout → `noindex` + 404 |
-| `/reference` | `Office.js API changelog: what changed in each CDN build \| silentship` (absolute) | `/reference` | h1 `Office.js API changelog`; the description leads with the newest Medium or High change (`latestNotableChange`, `latestChangeText`: "Latest: Word.LineFormat lost 8 WordApiDesktop 1.3 properties in 16.0.20619 (Oct 2026).") and updates itself; hub, grouped by namespace; JSON-LD `CollectionPage` with an `ItemList` of every type page + `BreadcrumbList` |
-| `/reference/<type>` | `<API> <what happened> in Office.js <channels> — silentship`, e.g. `Excel.SensitivityLabelAbacAttribute removed in Office.js beta`; several changed paths → `<type>: N API changes in Office.js` | `/reference/<type>` | `og:type=article`; the h1 repeats the title; JSON-LD `TechArticle` + `BreadcrumbList`; another spelling → 308; unknown → 404 + `noindex` |
+| `/` | `Office.js changelog: live CDN builds and API changes — silentship` (absolute) | `/` | the h1 starts with the line "Office.js changelog · <state>" (the eyebrow, inside the h1), so the phrase stays whatever the headline says about the current build; JSON-LD `WebSite` |
+| `/rollouts/<channel>/<group>` | `Office.js <short build> (production\|beta): <N> API changes — silentship`, e.g. `Office.js 16.0.20710 (production): 15 API changes` | `/rollouts/<channel>/<group>`; for a beta release with the same API changes as production — the production page (below) | h1 `Office.js <build>`; `og:type=article`; own preview (build, API changes, severity, state); description "Office.js <build> on the <channel> CDN: 15 API changes in 21 of 22 host files, medium severity; rollout complete. First seen …"; JSON-LD `TechArticle` (about a `Thing` "Office.js <build>" — not `SoftwareApplication`, which Google rejects without offers or ratings; published = first seen, modified = completed/last seen) + `BreadcrumbList`; a missing rollout → `noindex` + 404 |
+| `/reference` | `Office.js API changelog: changes in each CDN build — silentship` | `/reference` | h1 `Office.js API changelog`; the description leads with the newest Medium or High change (`latestNotableChange`, `latestChangeText`: "Latest: Word.LineFormat lost 8 WordApiDesktop 1.3 properties in 16.0.20619 (Oct 2026)."; a single change is named by its path: "Latest: Office.ribbon.requestUpdate (RibbonApi 1.1) implementation changed in 16.0.20710 (Nov 2026).") and updates itself; the general sentence after it shortens to stay within 160 characters; hub, grouped by namespace; JSON-LD `CollectionPage` with an `ItemList` of every type page + `BreadcrumbList` |
+| `/reference/<type>` | `<API> <what happened> in Office.js[ beta][ (preview\|undocumented)] — silentship`, e.g. `Excel.SensitivityLabelAbacAttribute removed in Office.js beta (preview)`: production is implied, beta-only is said; several changed paths → `<type>: N API changes in Office.js` | `/reference/<type>` | `og:type=article`; own preview (the type and what happened); description "<type> (<status>): <change> in Office.js <build>[ beta], first seen <day>." plus the hosts, "Not in production yet." and "Full change history." as far as 160 characters allow; an **undocumented** type is `noindex, follow` and out of the sitemap (`indexedType`); the h1 repeats the title; JSON-LD `TechArticle` + `BreadcrumbList`; another spelling → 308; unknown → 404 + `noindex` |
 | `/notes` | `Notes — silentship` | `/notes` | list of notes, newest first; JSON-LD `CollectionPage` + `BreadcrumbList` |
 | `/notes/<slug>` | `<seoTitle or title> — silentship`, e.g. `New Office.js CDN endpoint vs. appsforoffice: what changes` | `/notes/<slug>` | `og:type=article` with `article:published_time`, `modified_time` (`updated`) and `article:tag` (`keywords`); its own preview image (`app/notes/[slug]/opengraph-image.js`, the title on the shared design); the h1 is `title`; JSON-LD `TechArticle` with `keywords` and `image` + `BreadcrumbList` |
 | `/privacy` | `Privacy policy — silentship` | `/privacy` | `noindex, follow` in the robots meta and an `X-Robots-Tag` header (`next.config.mjs`); not in the sitemap (left crawlable in `robots.txt` so the `noindex` is seen); the footer links it `rel="nofollow"` |
@@ -36,7 +41,11 @@ the same image.
 by `components/JsonLd.js`, which escapes `<` so no value can close the script tag. A new page type gets its
 JSON-LD from these builders, not hand-written objects.
 
-**Open Graph image** — `app/opengraph-image.js` (`next/og`, 1200×630, generated at build time), one for the whole site.
+**Open Graph images** share one design, `lib/ogCard.js` (`next/og`, 1200×630): `app/opengraph-image.js` for pages
+without their own (built once), notes (built at build time), rollout and API type pages (rendered per request from
+the API; 404 for an unknown one). A page points at its own with `ownImage(path, alt)` from `lib/site.js`. Long API
+paths wrap after a dot. `TechArticle` always carries an `image` (the page's, else the shared one); the publisher
+`Organization` has `logo` = `/icon.svg`.
 
 ## `/sitemap.xml` — generated
 
@@ -45,16 +54,30 @@ would be baked in empty; this way new rollouts appear without a redeploy. Conten
 
 - `/` — `lastmod` = the newest change of any rollout, `hourly`, priority 1;
 - every rollout group from `/api/sitemap` — `lastmod` = max(`lastSeenAt`, `completedAt`), `daily`, priority
-  0.8 for prod and 0.6 for beta;
-- `/notes` — `lastmod` = the newest note's date, `weekly`, 0.6; every note — its `updated` or else `date`,
+  0.8 for prod and 0.6 for beta; a beta release whose canonical page is production's is left out (`sitemapReleases`);
+- `/notes` — `lastmod` = the newest `updated` or `date` of any note, `weekly`, 0.6; every note — its `updated` or else `date`,
   `monthly`, 0.7 (read from `content/notes/`, no backend; `lib/notes.js` rejects a date that is not a real
   `YYYY-MM-DD`, so a typo fails the build instead of the sitemap);
 - `/reference` — `lastmod` = the newest type, `daily`, 0.7;
-- every API type page — `lastmod` = the newest change of its rollouts, `weekly`, 0.5.
+- every indexed API type page (`indexedType`; `/api/sitemap` sends each type's `docs` status) — `lastmod` = the
+  newest change of its rollouts, `weekly`, 0.5.
 
 The protocol limit is 50,000 URLs per file (`$limit` in `sitemapGroups`); far away. A down backend (e.g. mid-deploy)
 gives an error (500), not a sitemap with only the static URLs: crawlers retry an error, while an empty 200
 reads as "every rollout and type page is gone".
+
+## Production and beta pages of one build
+
+Beta usually gets a build first and production the very same build later. When both releases carry exactly the
+same API changes (`path`, `from`, `kind`), the two pages say the same thing: `getRelease("beta", …)` returns
+`canonicalTrack: "prod"`, the beta page's canonical, `og:url` and JSON-LD point at the production page, it shows
+"Production got this build with the same API changes →", and the sitemap lists only the production page. When
+the changes differ (beta often has more), both pages stay canonical. RSS keeps both items.
+
+## Headers
+
+`Strict-Transport-Security: max-age=31536000` on every response (`next.config.mjs`), without `includeSubDomains` or
+`preload`: both are hard to take back.
 
 ## `/robots.txt`
 
@@ -104,9 +127,10 @@ reading as thin or doorway pages:
 - **One URL:** the exact identifier (`/reference/Excel.Range`), case kept; other spellings 308 to it.
 - **Linked:** the nav ("API changes"), every API row on a rollout page, related types, the hub, `llms.txt`,
   the sitemap.
-- **If Search Console reports many "Crawled – currently not indexed"** type pages, add a `noindex` threshold
-  (e.g. beta-only additions with a single event) in `generateMetadata` of `app/reference/[type]/page.js`
-  rather than dropping pages.
+- **Undocumented types are `noindex`** (`indexedType` in `lib/apiType.js`): internals of Office.js that few people
+  search for would otherwise make most of the index. The pages stay, linked from the hub and `llms.txt`. A
+  documented type that changed only in undocumented members (`Excel.PivotTable`) stays indexed. If Search Console
+  still reports many "Crawled – currently not indexed" type pages, raise the threshold there rather than drop pages.
 
 ## Internal links to notes
 

@@ -176,5 +176,13 @@ describe("/reference description", () => {
     expect(latestChangeText({ ...c, kind: "renamed", count: 1, node: "function", apiSet: null })).toBe(
       "Latest: Word.LineFormat: 1 function renamed in 16.0.20619 (Oct 2026).",
     );
+    // A body change has no node kind: the noun falls back to "member" instead of vanishing.
+    expect(latestChangeText({ ...c, kind: "bodyChanged", count: 1, node: null, apiSet: null })).toBe(
+      "Latest: Word.LineFormat: 1 member with a changed implementation in 16.0.20619 (Oct 2026).",
+    );
+    // One change with its path: named, not counted.
+    expect(
+      latestChangeText({ ...c, type: "Office.ribbon", path: "Office.ribbon.requestUpdate", kind: "bodyChanged", count: 1, node: null, apiSet: "RibbonApi 1.1", build: "16.0.20710.15050", firstSeenAt: "2026-11-16T22:30:00Z" }),
+    ).toBe("Latest: Office.ribbon.requestUpdate (RibbonApi 1.1) implementation changed in 16.0.20710 (Nov 2026).");
   });
 });

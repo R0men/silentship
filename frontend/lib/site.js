@@ -28,12 +28,20 @@ export const NOTES_RSS = {
 };
 
 /** The shared preview rendered by app/opengraph-image.js (same size and alt). */
-const OG_IMAGE = {
+export const OG_IMAGE = {
   url: "/opengraph-image",
   width: 1200,
   height: 630,
   alt: "silentship — know when Office.js changes on the CDN",
 };
+
+/** The title template of app/layout.js appends this. */
+const TITLE_SUFFIX = ` — ${SITE.name}`;
+/** Longer titles are cut in search results; past this the suffix is dropped rather than the page's words. */
+const TITLE_MAX = 65;
+
+/** A page's own preview: the opengraph-image.js of its route segment, at `<path>/opengraph-image`. */
+export const ownImage = (path, alt) => ({ url: `${path}/opengraph-image`, width: 1200, height: 630, alt });
 
 /**
  * Per-page metadata. Next merges metadata shallowly, so a page that sets `alternates` or `openGraph`
@@ -42,7 +50,7 @@ const OG_IMAGE = {
  */
 export function pageMeta({ path, title, description, type = "website", image = OG_IMAGE, article, keywords, rss = RSS }) {
   return {
-    title,
+    title: title.length + TITLE_SUFFIX.length > TITLE_MAX ? { absolute: title } : title,
     description,
     ...(keywords && { keywords }),
     alternates: { canonical: path, types: rss },

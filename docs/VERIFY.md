@@ -57,12 +57,19 @@ curl -sI https://silentship.dev/opengraph-image | head -3
 curl -s https://silentship.dev/llms.txt
 ```
 - `robots.txt`: `Disallow` for `/api/`, `/confirm`, `/unsubscribe`, `/health` and `Sitemap: https://silentship.dev/sitemap.xml`.
-- `sitemap.xml`: valid XML with `/`, `/privacy`, `/reference`, one URL per group and one per API type from
-  `/api/sitemap`; every `<loc>` is absolute.
-- `/reference/<type>` of a changed type: title and h1 say what happened and on which channel; canonical is the
+- `sitemap.xml`: valid XML with `/`, `/reference`, `/notes` and every note, one URL per release (a beta one only
+  when it differs from production) and one per indexed API type from `/api/sitemap`; every `<loc>` is absolute; no
+  `/privacy`.
+- `/reference/<type>` of a changed type: title and h1 say what happened and whether it is beta only; canonical is the
   exact identifier; a lower-case spelling answers 308 to it; a type that never changed — 404 and `noindex`.
   Every API row on a rollout page links to its type page.
-- canonical and `og:url` are absolute; `og:image` is a 1200×630 PNG.
+- canonical and `og:url` are absolute; `og:image` is a 1200×630 PNG, the page's own on rollout, API type and note
+  pages (`<path>/opengraph-image`).
+- Titles ≤ 65 characters where the API name allows, descriptions ≤ 160 (crawl every sitemap URL).
+- An undocumented type page (e.g. `/reference/OfficeCore.FlightingService`): `noindex, follow`, not in the sitemap.
+- A beta rollout page with the same API changes as production (e.g. `/rollouts/beta/16.0.20619.15190`): canonical →
+  `/rollouts/prod/…`, the "Production got this build" line, not in the sitemap.
+- `curl -sI https://silentship.dev/ | grep -i strict-transport` → `max-age=31536000`.
 - `llms.txt`: `text/plain`, heading `# silentship`, absolute links, "Recent rollouts" matches the home page.
 - A missing rollout page (`/rollouts/prod/nope`) — 404 and `noindex`.
 - External: Google Rich Results Test / Search Console → Sitemaps.

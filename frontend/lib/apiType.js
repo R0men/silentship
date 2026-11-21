@@ -123,15 +123,32 @@ export function statusLabel(docs) {
   return "Undocumented";
 }
 
-const TITLE_STATUS = { preview: " (preview API)", undocumented: " (undocumented API)" };
+const TITLE_STATUS = { preview: " (preview)", undocumented: " (undocumented)" };
 
+/**
+ * Whether search engines index a type's page. An undocumented type is an internal of Office.js that hardly
+ * anyone searches for: its page stays for the hub and for readers, but is noindex and out of the sitemap.
+ * A documented type that changed only in undocumented members (Excel.PivotTable) stays indexed.
+ */
+export const indexedType = (docsStatus) => docsStatus !== "undocumented";
+
+/** " beta" while a change is live on beta only; production (with or without beta) is plain Office.js. */
+const betaOnly = (chans) => (chans.length && !chans.includes("prod") ? " beta" : "");
+
+/**
+ * "Excel.Range.getCell removed in Office.js beta (preview)". Short enough for a search result: production
+ * is implied, beta and the API status are said.
+ */
 export function pageTitle(t) {
   const subjects = new Set(t.events.map((e) => subjectOf(e, t.type)));
   const status = TITLE_STATUS[t.docs?.status] ?? "";
-  if (subjects.size > 1) return `${t.type}: ${subjects.size} API changes in Office.js${status}`;
+  if (subjects.size > 1) {
+    const live = [...new Set(t.events.filter((e) => e.status !== "abandoned").map((e) => e.channel))];
+    return `${t.type}: ${subjects.size} API changes in Office.js${betaOnly(live)}${status}`;
+  }
   const e = headlineEvent(t.events);
-  const chans = channelsOf(t.events, e).map((c) => CHANNEL_NAME[c]);
-  const where = chans.length ? ` in Office.js ${list(chans)}` : " in Office.js (pulled back)";
+  const chans = channelsOf(t.events, e);
+  const where = chans.length ? ` in Office.js${betaOnly(chans)}` : " in Office.js (pulled back)";
   const own = e.path === t.type || e.kind === "renamed";
   return `${own ? t.type : e.path} ${changePhrase(e, own ? t.type : e.path)}${where}${status}`;
 }
@@ -156,8 +173,9 @@ const STATUS_WORDS = {
   undocumented: () => "not in Microsoft's documentation",
 };
 
-/** Meta description; `lede` drops the closing sentence meant for search results. */
+/** The lede under the h1: the headline change, the hosts it affects, whether production has it. */
 export function pageDescription(t, { lede = false } = {}) {
+  if (!lede) return metaDescription(t);
   const e = headlineEvent(t.events);
   const files = [...new Set(t.events.flatMap((x) => [...x.files, ...x.pulledFiles]))];
   const prod = t.events.some((x) => x.channel === "prod");
@@ -166,10 +184,50 @@ export function pageDescription(t, { lede = false } = {}) {
     `${t.type}${status ? `, ${status},` : ""} ${changePhrase(e, t.type)} on the Office.js ${CHANNEL_NAME[e.channel]} CDN in ${groupTitle(e)}, first seen ${fmtDate(e.firstSeenAt)}.`,
     files.length ? `Affects ${hostsSentence(files)}.` : "",
     prod ? "" : "Not changed in production so far.",
-    lede ? "" : "Full change history across Office.js builds.",
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+const STATUS_SHORT = {
+  ga: (d) => (d.apiSet ? `GA, ${d.apiSet}` : "GA"),
+  preview: (d) => (d.apiSet ? `preview, ${shortSet(d.apiSet)}` : "preview"),
+  undocumented: () => "undocumented",
+};
+
+/** Search results show about this many characters of a description. */
+const DESCRIPTION_MAX = 160;
+
+const day = (d) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+/**
+ * The meta description, within DESCRIPTION_MAX: the headline change with build and date first, then as many
+ * of the hosts, "not in production yet" and the history line as fit.
+ */
+export function metaDescription(t) {
+  const e = headlineEvent(t.events);
+  const status = STATUS_SHORT[t.docs?.status]?.(t.docs);
+  const name = status ? `${t.type} (${status})` : t.type;
+  const subjects = new Set(t.events.map((x) => subjectOf(x, t.type))).size;
+  const build = `Office.js ${groupTitle(e)}${e.channel === "beta" ? " beta" : ""}`;
+  const sentence = (where) =>
+    subjects > 1
+      ? `${name}: ${subjects} API changes, latest ${changePhrase(e, t.type)} in ${where}.`
+      : `${name}: ${changePhrase(e, t.type)} in ${where}.`;
+  // A long member name leaves no room for the date; past even that, cut at a word.
+  let lead = sentence(`${build}, first seen ${day(e.firstSeenAt)}`);
+  if (lead.length > DESCRIPTION_MAX) lead = sentence(build);
+  if (lead.length > DESCRIPTION_MAX) lead = `${lead.slice(0, DESCRIPTION_MAX - 1).replace(/\s+\S*$/, "")}…`;
+  const files = [...new Set(t.events.flatMap((x) => [...x.files, ...x.pulledFiles]))];
+  const hosts = [...new Set(files.map((f) => fileLabel(f).split(" on ")[0]))];
+  const extras = [
+    hosts.length ? `Affects ${list(hosts)}.` : "",
+    t.events.some((x) => x.channel === "prod") ? "" : "Not in production yet.",
+    "Full change history.",
+  ].filter(Boolean);
+  let out = lead;
+  for (const x of extras) if (out.length + 1 + x.length <= DESCRIPTION_MAX) out += ` ${x}`;
+  return out;
 }
 
 /** `isSetSupported("ExcelApi", "1.17")` for a released set, null otherwise. */
