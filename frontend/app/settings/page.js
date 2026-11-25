@@ -6,7 +6,7 @@ export const metadata = {
   ...pageMeta({
     path: "/settings",
     title: "Alert settings",
-    description: "Choose which Office.js channels, severities and APIs your silentship alerts cover.",
+    description: "Sign in with your email and choose which Office.js channels, applications and APIs your silentship alerts cover.",
   }),
   // Personal page reached from an email; nothing here for search engines.
   robots: { index: false, follow: false },
@@ -16,7 +16,8 @@ export const metadata = {
 
 /**
  * Alert settings for one subscriber. Static: the token comes in the fragment (`/settings#token=…`, from the
- * links in every email), so the page reads it in the browser and talks to /api/settings.
+ * links in every email), from this browser's memory or from a sign-in code, all read in the browser
+ * (components/Settings.js), which talks to /api/settings.
  */
 export default function SettingsPage() {
   return (

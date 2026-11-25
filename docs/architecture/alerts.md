@@ -1,7 +1,7 @@
 # Subscriptions, watchlist and alerts
 
 Code: `POST /api/subscribe`, `/confirm`, `/unsubscribe`, `GET|POST /api/settings` — `backend/src/web/server.js`;
-validation of settings — `backend/src/notify/settings.js`; the settings page — `frontend/app/settings/page.js`,
+validation of settings — `backend/src/notify/settings.js`; applications — `backend/src/analysis/apps.js`; the settings page — `frontend/app/settings/page.js`,
 `frontend/components/Settings.js`; sending —
 `backend/src/notify/alerts.js` (`notifyPending`, `flushDeliveries`, `pruneUnconfirmed`, `sendPreviewEmails`); delivery —
 `backend/src/notify/senders.js`; email HTML — `backend/src/notify/email-templates.js`; matching —
@@ -19,7 +19,9 @@ validation of settings — `backend/src/notify/settings.js`; the settings page �
 - A confirmation email with a `/confirm?token=…` link. **A GET never changes a subscription:** corporate
   mail gateways (Defender Safe Links, Mimecast) open every link in a message to scan it, which would confirm
   any address someone typed into the form and unsubscribe people. `GET /confirm` shows a page with a button
-  (`web/action-page.js`); its `POST /confirm` confirms and redirects (303) to `/?notice=confirmed`.
+  (`web/action-page.js`); its `POST /confirm` confirms and redirects (303) to the subscriber's settings,
+  `/settings?welcome=1#token=…`, which say "You're subscribed" and remember this browser. A `GET /confirm` of an
+  address already confirmed goes to `/settings#token=…` too.
 - The first confirmation sends `welcomeEmail` once (`welcomedAt`, set atomically). The confirmation and welcome
   emails carry `Reply-To: MAIL_REPLY_TO` and ask "Reply to this email and tell me what you build with
   Office.js. I read every reply."
@@ -45,16 +47,48 @@ validation of settings — `backend/src/notify/settings.js`; the settings page �
 Every email links "Manage alerts" next to "Unsubscribe": `/settings#token=…` (`settingsUrl` in
 `email-templates.js`). The token is in the **fragment**, so the browser never sends it to the server, to
 nginx logs, to Umami (`data-exclude-hash`) or in a `Referer`; the static page reads it and calls
-`GET /api/settings?token=…` (email, channels, `minSeverity`, `watchItems`, the host list) and
-`POST /api/settings?token=…` with `{ channels, minSeverity, watchItems }`. 404 for an unknown token, 410 for an
+`GET /api/settings?token=…` (email, channels, `minSeverity`, `apps`, `watchItems`, the host list, `appList`) and
+`POST /api/settings?token=…` with `{ channels, minSeverity, apps, watchItems }`. 404 for an unknown token, 410 for an
 unsubscribed address, 403 before confirmation. `parseSettings` (`notify/settings.js`) validates: channels a
-non-empty subset of `prod`, `beta`; `minSeverity` one of `low`, `medium`, `high`; at most 50 patterns of
+non-empty subset of `prod`, `beta`; `minSeverity` one of `low`, `medium`, `high`; `apps` a subset of `APPS` (empty or every one is stored as `[]`, all
+applications, so one added later is included); at most 50 patterns of
 dotted identifiers with an optional `.*` (≤ 120 characters), hosts from `WATCH_HOSTS`; empty rows and
 duplicates (case aside) are dropped. The token proves the inbox, so adding beta here needs no second
 confirmation (unlike the form, which anyone can submit for any address). Subscribers from before the page
 existed have the same token; their older emails lack the link, so the unsubscribe page (`GET /unsubscribe`)
 offers it too: "Too many emails? Only get alerts for the APIs you use". The page is `noindex`, out of the
 sitemap and `Referrer-Policy: no-referrer`.
+
+**Reaching it from the site.** "Alerts" in the nav and "Manage your alerts" under the subscribe form open
+`/settings`. The page takes the token from the link (and removes it from the address bar), else from this
+browser's localStorage (`frontend/lib/account.js`: token and email, saved whenever the settings load, removed
+by "Forget this browser" or when the API answers 404/410/403), else it asks for the email (`SignIn.js`):
+
+- `POST /api/signin { email }`: a confirmed, subscribed address gets `signInEmail` — a 6-digit code (subject
+  "Your silentship sign-in code: …") and a "Manage alerts" button for the device that reads the mail. Any
+  other address goes through the subscribe flow (`subscribeAddress`, channel `prod`): the confirmation email,
+  whose button opens the settings. The reply is `{ ok: true }` either way, so the form reveals no subscriber.
+  The same per-address email limits as the subscribe form (`claimEmailSlot`), 10 requests per hour per IP,
+  and the global confirmation cap.
+- `POST /api/signin/verify { email, code }` → `{ token, email }`. The code is stored only as
+  sha256(subscriber id + code) in `signInCode`, lives 15 minutes (`CODE_TTL_MS`), allows 5 guesses
+  (`CODE_ATTEMPTS`, counted atomically before the comparison) and is removed once used; a new code replaces
+  the old one. 30 checks per hour per IP. Any failure is `400 invalid_code`.
+
+No password and no session: the token in every email already gives this access, and reading the inbox
+proves the address.
+
+## Applications
+
+A subscriber can narrow alerts to the applications their add-in runs in, several at once (`apps`). An API
+path belongs to one application (`appOf`, also the `/reference` filter): its namespace for `Excel`, `Word`,
+`PowerPoint`, `Outlook`, `OneNote`, `Visio`; `Outlook` also for `Office.context.mailbox`, `Office.Mailbox*`
+and `Office.MailboxEnums`; `Common` ("Common API") for the rest — `Office`, `OfficeExtension`, `OfficeCore`,
+`OSF`. It works like a watchlist and together with one (a change must match both): only API changes in the
+chosen applications count, and the severity is theirs; a rollout with none is not emailed, and neither is a
+High build with no API changes (a removed file). The email heading says "API changes in Excel and Word"
+(the watchlist's heading wins when both are set). Rollbacks follow the same rule; loader-flags-changed goes
+to everyone.
 
 ## Watchlist
 

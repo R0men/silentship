@@ -1,6 +1,7 @@
 import { config, LEGACY_CHANNEL, legacyOf, pairedChannel } from "../config.js";
 import { db } from "../db.js";
 import { SEVERITY_RANK } from "../analysis/diff.js";
+import { appOf } from "../analysis/apps.js";
 import { apiStatus, learnUrl } from "../analysis/api-catalog.js";
 import { flagsChangeNotice } from "../crawler/loader.js";
 import { LOADER_PATH } from "../crawler/manifest.js";
@@ -835,6 +836,8 @@ export async function listApiTypes() {
     .map((t) => ({
       type: t.type,
       namespace: t.type.split(".")[0],
+      // The Office application, as the /reference filter and the subscriber's "Applications" setting see it.
+      app: appOf(t.type),
       kinds: [...t.kinds].sort(),
       channels: ["prod", "beta"].filter((c) => t.channels.has(c)),
       changes: t.paths.size,

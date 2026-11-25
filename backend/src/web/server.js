@@ -1,9 +1,10 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
 import { config } from "../config.js";
 import { db } from "../db.js";
 import { SEVERITY_RANK } from "../analysis/diff.js";
-import { alreadySubscribedEmail, confirmEmail, welcomeEmail } from "../notify/email-templates.js";
+import { APPS, appLabel } from "../analysis/apps.js";
+import { alreadySubscribedEmail, confirmEmail, signInEmail, welcomeEmail } from "../notify/email-templates.js";
 import { sendEmail } from "../notify/senders.js";
 import { parseSettings, WATCH_HOSTS } from "../notify/settings.js";
 import { esc } from "../util/html.js";
@@ -30,6 +31,15 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GROUP_RE = /^[\w.-]{1,80}$/;
 
 const pct = (share) => `${Math.round(share * 100)}%`;
+
+/** A sign-in code lives 15 minutes and allows 5 guesses; codes share the per-address email limits. */
+export const CODE_TTL_MS = 15 * 60_000;
+export const CODE_ATTEMPTS = 5;
+const codeHash = (sub, code) => createHash("sha256").update(`${sub._id}:${code}`).digest();
+const normEmail = (raw) =>
+  String(raw ?? "")
+    .trim()
+    .toLowerCase();
 
 export { apiChangesLine };
 
@@ -82,6 +92,8 @@ export async function buildServer() {
   // `true` would trust the whole X-Forwarded-For header, letting anyone pick their own IP; see config.trustProxy.
   const app = Fastify({ logger: { level: "info" }, trustProxy: config.trustProxy });
   const allowSubscribe = rateLimiter(5, 3600_000);
+  const allowSignIn = rateLimiter(10, 3600_000);
+  const allowCodeCheck = rateLimiter(30, 3600_000);
   // Global cap on confirmation emails: protects the Brevo quota and sender reputation from a botnet.
   const allowConfirmationEmail = rateLimiter(config.maxConfirmationsPerHour, 3600_000);
   const live = createLiveFeed();
@@ -149,14 +161,37 @@ export async function buildServer() {
     reply.type("application/rss+xml; charset=utf-8").send(feed);
   });
 
-  app.post("/api/subscribe", { bodyLimit: 4096 }, async (req, reply) => {
-    const email = String(req.body?.email ?? "")
-      .trim()
-      .toLowerCase();
-    if (!EMAIL_RE.test(email) || email.length > 254) return reply.code(400).send({ error: "invalid_email" });
-    if (!allowSubscribe(req.ip)) return reply.code(429).send({ error: "too_many_requests" });
+  /**
+   * Claims one email to this address: one a minute, 3 per 10 minutes, 10 a day, so no form can be used to
+   * flood an inbox. Atomic: parallel submits must not all pass the check before any of them records it.
+   */
+  async function claimEmailSlot(email) {
+    const { subscribers } = await db();
+    const now = new Date();
+    const ago = (ms) => new Date(now.getTime() - ms);
+    const sentToday = { $filter: { input: { $ifNull: ["$confirmationsSent", []] }, cond: { $gt: ["$$this", ago(24 * 3600_000)] } } };
+    const sentSince = (ms) => ({ $size: { $filter: { input: sentToday, cond: { $gt: ["$$this", ago(ms)] } } } });
+    const { modifiedCount } = await subscribers.updateOne(
+      {
+        email,
+        $expr: {
+          $and: [
+            { $lt: [{ $size: sentToday }, 10] },
+            { $lt: [sentSince(10 * 60_000), 3] },
+            { $eq: [sentSince(60_000), 0] },
+          ],
+        },
+      },
+      [{ $set: { confirmationsSent: { $concatArrays: [sentToday, [now]] } } }],
+    );
+    return modifiedCount > 0;
+  }
 
-    const channels = req.body?.beta ? ["prod", "beta"] : ["prod"];
+  /**
+   * The subscribe form, and a sign-in by an address that is not subscribed. Every call gets an email within
+   * claimEmailSlot's limits, so "check your inbox" is true and the reply leaks nothing. False over the global cap.
+   */
+  async function subscribeAddress(email, channels, source) {
     const { subscribers } = await db();
     const existing = await subscribers.findOne({ email });
     let sub;
@@ -165,7 +200,7 @@ export async function buildServer() {
         email,
         token: randomBytes(24).toString("base64url"),
         // First touch only: utm_source, a referrer's domain or "direct" — one word, no IP, no URL.
-        source: signupSource(req.body?.source),
+        source: signupSource(source),
         createdAt: new Date(),
         confirmedAt: null,
         unsubscribedAt: null,
@@ -188,28 +223,8 @@ export async function buildServer() {
       sub = { ...existing, ...update };
       if (Object.keys(update).length) await subscribers.updateOne({ _id: existing._id }, { $set: update });
     }
-    // Every submit gets an email, so the form's "check your inbox" is true and the reply leaks nothing.
-    // Per address: one a minute, 3 per 10 minutes, 10 a day, so the form cannot be used to flood an inbox.
-    // The slot is claimed atomically: parallel submits must not all pass the check before any of them records it.
-    const now = new Date();
-    const ago = (ms) => new Date(now.getTime() - ms);
-    const sentToday = { $filter: { input: { $ifNull: ["$confirmationsSent", []] }, cond: { $gt: ["$$this", ago(24 * 3600_000)] } } };
-    const sentSince = (ms) => ({ $size: { $filter: { input: sentToday, cond: { $gt: ["$$this", ago(ms)] } } } });
-    const { modifiedCount } = await subscribers.updateOne(
-      {
-        email,
-        $expr: {
-          $and: [
-            { $lt: [{ $size: sentToday }, 10] },
-            { $lt: [sentSince(10 * 60_000), 3] },
-            { $eq: [sentSince(60_000), 0] },
-          ],
-        },
-      },
-      [{ $set: { confirmationsSent: { $concatArrays: [sentToday, [now]] } } }],
-    );
-    if (modifiedCount) {
-      if (!allowConfirmationEmail("global")) return reply.code(429).send({ error: "too_many_requests" });
+    if (await claimEmailSlot(email)) {
+      if (!allowConfirmationEmail("global")) return false;
       const link = `${config.publicUrl}/confirm?token=${sub.token}`;
       const message =
         !sub.confirmedAt || sub.pendingChannels
@@ -220,8 +235,75 @@ export async function buildServer() {
             });
       await sendEmail({ to: email, ...message });
     }
+    return true;
+  }
+
+  app.post("/api/subscribe", { bodyLimit: 4096 }, async (req, reply) => {
+    const email = normEmail(req.body?.email);
+    if (!EMAIL_RE.test(email) || email.length > 254) return reply.code(400).send({ error: "invalid_email" });
+    if (!allowSubscribe(req.ip)) return reply.code(429).send({ error: "too_many_requests" });
+    const channels = req.body?.beta ? ["prod", "beta"] : ["prod"];
+    if (!(await subscribeAddress(email, channels, req.body?.source))) {
+      return reply.code(429).send({ error: "too_many_requests" });
+    }
     // Same answer whether or not the address was already known, so the form does not leak subscribers.
     return { ok: true };
+  });
+
+  // Sign-in on /settings, no password: whoever reads the inbox owns the address. A subscribed address gets
+  // a 6-digit code and the settings button; any other address gets the confirmation email, as from the
+  // subscribe form (confirming opens the settings too). The reply is the same either way.
+  app.post("/api/signin", { bodyLimit: 4096 }, async (req, reply) => {
+    const email = normEmail(req.body?.email);
+    if (!EMAIL_RE.test(email) || email.length > 254) return reply.code(400).send({ error: "invalid_email" });
+    if (!allowSignIn(req.ip)) return reply.code(429).send({ error: "too_many_requests" });
+    const { subscribers } = await db();
+    const sub = await subscribers.findOne({ email });
+    if (!sub?.confirmedAt || sub.unsubscribedAt) {
+      if (!(await subscribeAddress(email, ["prod"], req.body?.source))) {
+        return reply.code(429).send({ error: "too_many_requests" });
+      }
+      return { ok: true };
+    }
+    if (await claimEmailSlot(email)) {
+      if (!allowConfirmationEmail("global")) return reply.code(429).send({ error: "too_many_requests" });
+      const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+      await subscribers.updateOne(
+        { _id: sub._id },
+        { $set: { signInCode: { hash: codeHash(sub, code), expiresAt: new Date(Date.now() + CODE_TTL_MS), attempts: 0 } } },
+      );
+      await sendEmail({ to: email, ...signInEmail({ code, settings: `${config.publicUrl}/settings#token=${sub.token}` }) });
+    }
+    return { ok: true };
+  });
+
+  /** The code from the sign-in email in exchange for the subscriber's token, which the browser keeps. */
+  app.post("/api/signin/verify", { bodyLimit: 4096 }, async (req, reply) => {
+    if (!allowCodeCheck(req.ip)) return reply.code(429).send({ error: "too_many_requests" });
+    const email = normEmail(req.body?.email);
+    const code = String(req.body?.code ?? "").replace(/\s+/g, "");
+    if (!EMAIL_RE.test(email) || !/^\d{6}$/.test(code)) return reply.code(400).send({ error: "invalid_code" });
+    const { subscribers } = await db();
+    // The attempt is counted first and atomically, so parallel guesses cannot exceed the limit.
+    const sub = await subscribers.findOneAndUpdate(
+      {
+        email,
+        confirmedAt: { $ne: null },
+        unsubscribedAt: null,
+        "signInCode.expiresAt": { $gt: new Date() },
+        "signInCode.attempts": { $lt: CODE_ATTEMPTS },
+      },
+      { $inc: { "signInCode.attempts": 1 } },
+      { returnDocument: "after" },
+    );
+    const stored = sub?.signInCode?.hash;
+    const expected = stored ? Buffer.from(stored.buffer ?? stored) : null;
+    const given = sub ? codeHash(sub, code) : null;
+    if (!expected || expected.length !== given.length || !timingSafeEqual(expected, given)) {
+      return reply.code(400).send({ error: "invalid_code" });
+    }
+    await subscribers.updateOne({ _id: sub._id }, { $unset: { signInCode: "" } });
+    return reply.header("cache-control", "no-store").send({ token: sub.token, email: sub.email });
   });
 
   // Email links: GET only shows a page with a button (mail scanners open every link), POST changes state.
@@ -232,12 +314,15 @@ export async function buildServer() {
     return subscribers.findOne({ token });
   }
   const notice = (reply, name) => reply.redirect(`${config.publicUrl}/?notice=${name}`, 303);
+  /** A confirmed subscriber lands on their settings; `welcome` shows "you're subscribed" there. */
+  const toSettings = (reply, sub, welcome) =>
+    reply.redirect(`${config.publicUrl}/settings${welcome ? "?welcome=1" : ""}#token=${sub.token}`, 303);
   const page = (reply, args) => reply.type("text/html; charset=utf-8").header("cache-control", "no-store").send(actionPage(args));
 
   app.get("/confirm", async (req, reply) => {
     const sub = await subscriberByToken(req);
     if (!sub) return notice(reply, "invalid-link");
-    if (sub.confirmedAt && !sub.unsubscribedAt && !sub.pendingChannels) return notice(reply, "confirmed");
+    if (sub.confirmedAt && !sub.unsubscribedAt && !sub.pendingChannels) return toSettings(reply, sub, false);
     const channels = sub.pendingChannels ?? sub.channels ?? ["prod"];
     return page(reply, {
       title: "Confirm your subscription",
@@ -272,7 +357,7 @@ export async function buildServer() {
         headers: { "List-Unsubscribe": `<${unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
       }).catch((err) => req.log.error(`welcome email to subscriber failed: ${String(err)}`));
     }
-    return notice(reply, "confirmed");
+    return toSettings(reply, sub, true);
   });
 
   app.get("/unsubscribe", async (req, reply) => {
@@ -310,12 +395,14 @@ export async function buildServer() {
     return notice(reply, sub ? "unsubscribed" : "invalid-link");
   });
 
-  // Alert settings, reached by the token in every email (like /unsubscribe): channels, minimum severity and
-  // the watchlist. The token proves the inbox, so a new channel needs no second confirmation here.
+  // Alert settings, reached by the token in every email (like /unsubscribe): channels, minimum severity,
+  // applications and the watchlist. The token proves the inbox, so a new channel needs no second confirmation here.
   const settingsOf = (sub) => ({
     email: sub.email,
     channels: sub.channels ?? ["prod"],
     minSeverity: sub.minSeverity ?? "low",
+    apps: sub.apps ?? [],
+    appList: APPS.map((a) => [a, appLabel(a)]),
     watchItems: (sub.watchItems ?? []).map((w) => ({ pattern: w.pattern, hosts: w.hosts ?? [] })),
     hosts: WATCH_HOSTS,
   });

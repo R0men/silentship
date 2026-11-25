@@ -44,6 +44,27 @@ const documented = (row) => row.build.documented;
 const everDocumented = (t) => t.builds.some((b) => b.documented);
 
 /**
+ * Applications in the order of the filter. A type's `app` comes from the API (backend/src/analysis/apps.js,
+ * the same rule as the subscriber's "Applications" setting): host namespaces, Outlook's `Office.Mailbox*`
+ * and `Office.context.mailbox`, and "Common" for the rest of Office, OfficeExtension and OfficeCore.
+ */
+const APP_ORDER = ["Excel", "Word", "PowerPoint", "Outlook", "OneNote", "Visio", "Common"];
+const APP_LABEL = { Common: "Common API" };
+const HOSTS = APP_ORDER.slice(0, -1);
+/** Before the API sent `app`: the namespace decides. */
+const appOf = (t) => t.app ?? (HOSTS.includes(t.namespace) ? t.namespace : "Common");
+
+/** What a build header shows for a set of its rows: documented and undocumented counts, top documented severity. */
+function stats(rows) {
+  const shown = rows.filter(documented);
+  return {
+    documented: shown.length,
+    internal: rows.length - shown.length,
+    severity: shown.reduce((m, r) => (SEV_RANK[r.build.severity] > SEV_RANK[m] ? r.build.severity : m), "low"),
+  };
+}
+
+/**
  * The hub by build, newest first: what each Office.js build changed, type by type. A visitor comes for what
  * is current, so the builds lead and the A–Z index of every type comes last.
  */
@@ -60,7 +81,7 @@ function byBuild(types, now) {
       }
       if (b.firstSeenAt < e.firstSeenAt) e.firstSeenAt = b.firstSeenAt;
       for (const c of b.channels) e.channels.add(c);
-      e.rows.push({ ...t, build: b, isNew: isNew && b === t.builds.at(-1) });
+      e.rows.push({ ...t, app: appOf(t), build: b, isNew: isNew && b === t.builds.at(-1) });
     }
   }
   return [...builds.values()]
@@ -71,12 +92,13 @@ function byBuild(types, now) {
           Number(documented(b)) - Number(documented(a)) ||
           a.type.localeCompare(b.type),
       );
-      const shown = rows.filter(documented);
+      const apps = APP_ORDER.filter((a) => rows.some((r) => r.app === a));
       return {
         ...e,
         rows,
-        documented: shown.length,
-        severity: shown.reduce((m, r) => (SEV_RANK[r.build.severity] > SEV_RANK[m] ? r.build.severity : m), "low"),
+        apps,
+        // The header for every application filter; the hub shows the one chosen (`data-for`).
+        views: [["all", stats(rows)], ...apps.map((a) => [a, stats(rows.filter((r) => r.app === a))])],
         // Prefer the production page: both tracks share one build number and the same API changes.
         href: `/rollouts/${e.channels.has("prod") ? "prod" : "beta"}/${encodeURIComponent(e.group)}`,
       };
@@ -85,9 +107,8 @@ function byBuild(types, now) {
 }
 
 function BuildSection({ b }) {
-  const internal = b.rows.length - b.documented;
   return (
-    <section className="hub-build">
+    <section className="hub-build" data-apps={b.apps.join(" ")}>
       <div className="hub-build-head">
         <h2>
           <Link className="mono" href={b.href}>
@@ -95,15 +116,19 @@ function BuildSection({ b }) {
           </Link>
         </h2>
         <span className="faint">{fmtDate(b.firstSeenAt)}</span>
-        {b.documented > 0 && <Severity value={b.severity} />}
-        <span className="hub-build-count muted">
-          {b.documented ? plural(b.documented, "documented type") : "no documented types"}
-          {internal > 0 && <span className="hub-internal-count"> · {internal} undocumented</span>}
-        </span>
+        {b.views.map(([app, v]) => (
+          <span className="hub-view" data-for={app} key={app}>
+            {v.documented > 0 && <Severity value={v.severity} />}
+            <span className="hub-build-count muted">
+              {v.documented ? plural(v.documented, "documented type") : "no documented types"}
+              {v.internal > 0 && <span className="hub-internal-count"> · {v.internal} undocumented</span>}
+            </span>
+          </span>
+        ))}
       </div>
       <div className="table type-hub">
         {b.rows.map((t) => (
-          <div className={`tr${documented(t) ? "" : " hub-undocumented"}`} key={t.type}>
+          <div className={`tr${documented(t) ? "" : " hub-undocumented"}`} key={t.type} data-app={t.app}>
             <div>
               <Link className="path" href={typeHref(t.type)}>
                 {t.type}
@@ -129,9 +154,13 @@ function BuildSection({ b }) {
             </div>
           </div>
         ))}
-        {b.documented === 0 && (
-          <div className="hub-only-internal faint">Only undocumented APIs changed in this build.</div>
-        )}
+        {b.views
+          .filter(([, v]) => v.documented === 0)
+          .map(([app]) => (
+            <div className="hub-only-internal faint" data-for={app} key={app}>
+              Only undocumented APIs changed in this build.
+            </div>
+          ))}
       </div>
     </section>
   );
@@ -149,6 +178,11 @@ export default async function ReferenceHub() {
   const namespaces = [...byNamespace.keys()].sort();
   const open = builds.slice(0, OPEN_BUILDS);
   const older = builds.slice(OPEN_BUILDS);
+  const olderApps = APP_ORDER.filter((a) => older.some((b) => b.apps.includes(a)));
+  const counts = (list) => ({ all: list.length, documented: list.filter(everDocumented).length });
+  const apps = APP_ORDER.map((a) => [a, types.filter((t) => appOf(t) === a)])
+    .filter(([, list]) => list.length)
+    .map(([a, list]) => [a, APP_LABEL[a] ?? a, counts(list)]);
 
   return (
     <article className="release">
@@ -170,14 +204,20 @@ export default async function ReferenceHub() {
       </p>
 
       {builds.length ? (
-        <HubFilter documented={types.filter(everDocumented).length} all={types.length}>
+        <HubFilter apps={apps} counts={counts(types)}>
           {open.map((b) => (
             <BuildSection b={b} key={b.group} />
           ))}
           {older.length > 0 && (
-            <details className="hub-older">
+            <details className="hub-older" data-apps={olderApps.join(" ")}>
               <summary>
-                Older builds ({older.length}): {older.map((b) => shortBuild(b.group)).join(", ")}
+                {[["all", older], ...olderApps.map((a) => [a, older.filter((b) => b.apps.includes(a))])].map(
+                  ([app, list]) => (
+                    <span data-for={app} key={app}>
+                      Older builds ({list.length}): {list.map((b) => shortBuild(b.group)).join(", ")}
+                    </span>
+                  ),
+                )}
               </summary>
               {older.map((b) => (
                 <BuildSection b={b} key={b.group} />
@@ -188,11 +228,15 @@ export default async function ReferenceHub() {
           <section className="type-section hub-index">
             <h2>Every changed type, A–Z</h2>
             {namespaces.map((ns) => (
-              <div className="hub-index-ns" key={ns}>
+              <div
+                className={`hub-index-ns${byNamespace.get(ns).some(everDocumented) ? "" : " hub-undocumented"}`}
+                key={ns}
+                data-apps={[...new Set(byNamespace.get(ns).map(appOf))].join(" ")}
+              >
                 <h3>{ns}</h3>
                 <ul>
                   {byNamespace.get(ns).map((t) => (
-                    <li key={t.type} className={everDocumented(t) ? "" : "hub-undocumented"}>
+                    <li key={t.type} className={everDocumented(t) ? "" : "hub-undocumented"} data-app={appOf(t)}>
                       <Link className="mono" href={typeHref(t.type)}>
                         {t.type.slice(ns.length + 1)}
                       </Link>{" "}

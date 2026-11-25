@@ -50,6 +50,8 @@ const STATUS_LABEL = { rolling: "Rolling out", complete: "Complete", abandoned: 
 
 const pct = (share) => `${Math.round((share ?? 0) * 100)}%`;
 const plural = (n, one) => `${n} ${one}${n === 1 ? "" : "s"}`;
+/** "Excel", "Excel and Word", "Excel, Word and Common API". */
+const listOf = (items) => (items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items.at(-1)}` : items[0]);
 
 function button(href, label) {
   return html`<table role="presentation" cellpadding="0" cellspacing="0" border="0">
@@ -200,6 +202,30 @@ export function welcomeEmail({ channels, unsubscribe }) {
   };
 }
 
+/** A sign-in to /settings: the code for the page, or the button for this device. */
+export function signInEmail({ code, settings }) {
+  const body = html`
+    <h1 style="margin:0 0 12px;font:600 26px/1.25 ${SANS};color:${C.text};letter-spacing:-0.02em;">
+      Your sign-in code
+    </h1>
+    <p style="margin:0 0 20px;color:${C.muted};">Enter this code on silentship.dev to manage your alerts:</p>
+    <p style="margin:0 0 28px;font:600 32px/1 ${MONO};color:${C.text};letter-spacing:0.18em;">${code}</p>
+    <p style="margin:0 0 20px;color:${C.muted};">Or open your settings on this device:</p>
+    ${button(settings, "Manage alerts")}
+    <p style="margin:28px 0 0;font:400 13px/1.6 ${SANS};color:${C.faint};">The code works for 15 minutes.</p>
+  `;
+  return {
+    subject: `Your silentship sign-in code: ${code}`,
+    text: `Your silentship sign-in code: ${code}\n\nEnter it on silentship.dev to manage your alerts (it works for 15 minutes), or open your settings: ${settings}\n\nIf you did not ask for it, ignore this email.`,
+    html: layout({
+      preheader: `${code} — your code to manage silentship alerts.`,
+      body,
+      footer:
+        "You received this because someone asked to sign in with this address at silentship.dev. If it was not you, ignore this email — nothing changes without the code.",
+    }),
+  };
+}
+
 /**
  * Sent when a confirmed address is submitted again with nothing new to confirm: the form always says
  * "check your inbox" (it must not reveal who is subscribed), so the inbox has to get something.
@@ -316,12 +342,17 @@ export function rollbackEmail({
   url,
   unsubscribe,
   watched,
+  apps = [],
 }) {
   const channelName = CHANNEL_LABEL[channel] ?? channel;
   const back = fromBuilds.length ? html`, so the CDN serves ${fromBuilds.join(", ")} again` : "";
   const changesBlock = entries.length
     ? html`<h2 style="margin:36px 0 8px;font:600 13px/1 ${SANS};color:${C.muted};letter-spacing:0.02em;">
-          ${watched ? "Reverted changes matching your watchlist" : "API changes that are reverted with it"}
+          ${watched
+            ? "Reverted changes matching your watchlist"
+            : apps.length
+              ? `Reverted API changes in ${listOf(apps)}`
+              : "API changes that are reverted with it"}
         </h2>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           ${entries.map(changeRow)}
@@ -394,6 +425,7 @@ export function alertEmail({
   url,
   unsubscribe,
   watched,
+  apps = [],
   update = false,
   notice = null,
 }) {
@@ -404,7 +436,11 @@ export function alertEmail({
     : "no public API changes";
   const changesBlock = entries.length
     ? html`<h2 style="margin:36px 0 8px;font:600 13px/1 ${SANS};color:${C.muted};letter-spacing:0.02em;">
-          ${update ? "New since the last alert — " : ""}${watched ? "Changes matching your watchlist" : "API changes"}
+          ${update ? "New since the last alert — " : ""}${watched
+            ? "Changes matching your watchlist"
+            : apps.length
+              ? `API changes in ${listOf(apps)}`
+              : "API changes"}
         </h2>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           ${entries.map(changeRow)}

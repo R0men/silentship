@@ -25,6 +25,11 @@
 
 ## History
 
+- **2026-11-25** — [2026-11-25.md](2026-11-25.md)
+  - `[Feature]` `/reference` filters by application (Excel, Word, PowerPoint, Outlook, OneNote, Visio, Common API)
+  - `[Feature]` Alerts only for the applications a subscriber chooses, several at once
+  - `[Feature]` Sign-in to alert settings by an emailed code; confirming opens the settings; the browser remembers the subscriber
+
 - **2026-11-21** — [2026-11-21.md](2026-11-21.md)
   - `[Bug Fix]` Microsoft's docs went back to appsforoffice: OneCDN is no longer called recommended, the loader-flags notice links our endpoints note
   - `[Feature]` Notes show when they were updated

@@ -169,6 +169,28 @@ describe("alert delivery", () => {
     expect(sent).toEqual([]);
   });
 
+  it("emails only changes in the applications a subscriber chose; Slack gets every change", async () => {
+    await col.subscribers.updateOne({ token: "tok" }, { $set: { apps: ["Word", "Outlook"] } });
+    await addRollout("excel-web-16.00.js", 0, [{ path: "Excel.Range.foo", kind: "removed", severity: "high" }]);
+    await alerts.notifyPending(20, at(60));
+    expect(sent.map((m) => m.transport)).toEqual(["slack"]);
+
+    sent.length = 0;
+    await addRollout("word-web-16.00.js", 70, [
+      { path: "Word.Body.bar", kind: "added", severity: "low" },
+      { path: "Office.MailboxEnums.ItemType.Foo", kind: "added", severity: "low" },
+      { path: "Office.ribbon.requestUpdate", kind: "implementation", severity: "medium" },
+    ]);
+    await alerts.notifyPending(20, at(140));
+    const email = sent.find((m) => m.transport === "email");
+    // The first email this subscriber gets about the build, so not an "update".
+    expect(email.subject).toBe("[low] Office.js beta: build 16.0.3 rolling out — 2 API changes");
+    expect(email.text).toContain("Word.Body.bar");
+    expect(email.text).toContain("Office.MailboxEnums.ItemType.Foo");
+    expect(email.text).not.toContain("Office.ribbon");
+    expect(email.html).toContain("API changes in Word and Outlook");
+  });
+
   it("drops a queued email when the subscriber unsubscribed meanwhile", async () => {
     await addRollout("excel-web-16.00.js", 0, [{ path: "Excel.Range.foo", kind: "removed", severity: "high" }]);
     failing = true;
@@ -256,7 +278,12 @@ describe("subscription links", () => {
 
     const done = await app.inject({ method: "POST", url: "/confirm?token=tok" });
     expect(done.statusCode).toBe(303);
-    expect(done.headers.location).toBe("https://example.test/?notice=confirmed");
+    // Confirming opens the settings with "you're subscribed"; the page keeps the token in the browser.
+    expect(done.headers.location).toBe("https://example.test/settings?welcome=1#token=tok");
+    // A confirmed address opening its link again goes to the settings too.
+    expect((await app.inject({ method: "GET", url: "/confirm?token=tok" })).headers.location).toBe(
+      "https://example.test/settings#token=tok",
+    );
     expect((await col.subscribers.findOne({ token: "tok" })).confirmedAt).not.toBeNull();
   });
 
@@ -289,12 +316,14 @@ describe("subscription links", () => {
   it("reads and saves alert settings by the email token; the alert links them", async () => {
     const get = await app.inject({ method: "GET", url: "/api/settings?token=tok" });
     expect(get.statusCode).toBe(200);
-    expect(get.json()).toMatchObject({ email: "dev@example.test", channels: ["prod", "beta"], minSeverity: "low", watchItems: [] });
+    expect(get.json()).toMatchObject({ email: "dev@example.test", channels: ["prod", "beta"], minSeverity: "low", apps: [], watchItems: [] });
+    expect(get.json().appList.map(([a]) => a)).toEqual(["Excel", "Word", "PowerPoint", "Outlook", "OneNote", "Visio", "Common"]);
 
     const save = (payload) => app.inject({ method: "POST", url: "/api/settings?token=tok", payload });
     const ok = await save({
       channels: ["beta", "prod", "beta"],
       minSeverity: "medium",
+      apps: ["Word", "Excel", "Word"],
       watchItems: [
         { pattern: "Excel.Range.*", hosts: ["excel"] },
         { pattern: " Office.context.ui.displayDialogAsync ", hosts: [] },
@@ -307,11 +336,17 @@ describe("subscription links", () => {
     expect(stored).toMatchObject({
       channels: ["prod", "beta"],
       minSeverity: "medium",
+      apps: ["Excel", "Word"],
       watchItems: [
         { pattern: "Excel.Range.*", hosts: ["excel"] },
         { pattern: "Office.context.ui.displayDialogAsync", hosts: [] },
       ],
     });
+    // Every application chosen is the same as none: all of them, including ones added later.
+    const all = ["Excel", "Word", "PowerPoint", "Outlook", "OneNote", "Visio", "Common"];
+    await save({ channels: ["prod"], minSeverity: "low", apps: all });
+    expect((await col.subscribers.findOne({ token: "tok" })).apps).toEqual([]);
+    expect((await save({ channels: ["prod"], minSeverity: "low", apps: ["Teams"] })).json().error).toBe("invalid_apps");
 
     expect((await save({ channels: [], minSeverity: "low" })).json().error).toBe("invalid_channels");
     expect((await save({ channels: ["prod"], minSeverity: "critical" })).json().error).toBe("invalid_severity");
@@ -328,6 +363,50 @@ describe("subscription links", () => {
   });
 
   const subscribe = (payload) => app.inject({ method: "POST", url: "/api/subscribe", payload });
+
+  const signIn = (email) => app.inject({ method: "POST", url: "/api/signin", payload: { email } });
+  const verify = (email, code) => app.inject({ method: "POST", url: "/api/signin/verify", payload: { email, code } });
+  const codeOf = (m) => /code: (\d{6})/.exec(m.subject)[1];
+
+  it("signs a subscriber in with the emailed code, once, and gives the browser the token", async () => {
+    await col.subscribers.updateOne({ token: "tok" }, { $set: { confirmationsSent: [] } });
+    expect((await signIn(" Dev@Example.test ")).json()).toEqual({ ok: true });
+    expect(sent).toHaveLength(1);
+    expect(sent[0].subject).toMatch(/^Your silentship sign-in code: \d{6}$/);
+    expect(sent[0].text).toContain("https://example.test/settings#token=tok");
+    const code = codeOf(sent[0]);
+    expect((await col.subscribers.findOne({ token: "tok" })).signInCode.hash).not.toBe(code);
+
+    const wrong = code === "000000" ? "111111" : "000000";
+    expect((await verify("dev@example.test", wrong)).statusCode).toBe(400);
+    const ok = await verify("dev@example.test", code);
+    expect(ok.json()).toEqual({ token: "tok", email: "dev@example.test" });
+    // Used once.
+    expect((await verify("dev@example.test", code)).statusCode).toBe(400);
+  });
+
+  it("allows 5 guesses per code and refuses an expired one", async () => {
+    await col.subscribers.updateOne({ token: "tok" }, { $set: { confirmationsSent: [] } });
+    await signIn("dev@example.test");
+    const code = codeOf(sent[0]);
+    const wrong = code === "000000" ? "111111" : "000000";
+    for (let i = 0; i < 5; i++) expect((await verify("dev@example.test", wrong)).statusCode).toBe(400);
+    expect((await verify("dev@example.test", code)).statusCode).toBe(400);
+
+    await col.subscribers.updateOne(
+      { token: "tok" },
+      { $set: { "signInCode.attempts": 0, "signInCode.expiresAt": new Date(Date.now() - 1000) } },
+    );
+    expect((await verify("dev@example.test", code)).statusCode).toBe(400);
+  });
+
+  it("answers a sign-in by an unknown address the same way and sends it the confirmation", async () => {
+    expect((await signIn("new@example.test")).json()).toEqual({ ok: true });
+    expect(sent.map((m) => [m.to, m.subject])).toEqual([["new@example.test", "Confirm your silentship alerts"]]);
+    const created = await col.subscribers.findOne({ email: "new@example.test" });
+    expect(created).toMatchObject({ confirmedAt: null, channels: ["prod"] });
+    expect(created.signInCode).toBeUndefined();
+  });
 
   it("tells a subscribed address it is already subscribed instead of staying silent", async () => {
     await col.subscribers.updateOne({ token: "tok" }, { $set: { channels: ["prod"], confirmationsSent: [] } });

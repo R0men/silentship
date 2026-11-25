@@ -55,6 +55,9 @@ export default function RootLayout({ children }) {
                 <SectionLink id="rollouts">Rollouts</SectionLink>
                 <Link href="/reference">API changes</Link>
                 <Link href="/notes">Notes</Link>
+                <Link className="nav-alerts" href="/settings">
+                  Alerts
+                </Link>
                 <a className="nav-rss" href="/rss.xml">
                   RSS
                 </a>

@@ -2,11 +2,12 @@ import { config, LEGACY_CHANNEL, legacyOf } from "../config.js";
 import { db } from "../db.js";
 import { maxSeverity, SEVERITY_RANK } from "../analysis/diff.js";
 import { matchingChanges } from "../analysis/watchlist.js";
+import { appLabel, changesInApps } from "../analysis/apps.js";
 import { flagsChangeNotice } from "../crawler/loader.js";
 import { hostTypeOf } from "../crawler/manifest.js";
 import { CONFIRM_RUNS } from "../pipeline/rollouts.js";
 import { apiChangesLine, countChanges, listGroups, plural } from "../web/queries.js";
-import { alertEmail, confirmEmail, rollbackEmail, settingsUrl, SUPPORT_URL } from "./email-templates.js";
+import { alertEmail, confirmEmail, rollbackEmail, settingsUrl, signInEmail, SUPPORT_URL } from "./email-templates.js";
 import { postSlack, sendEmail } from "./senders.js";
 
 /** One entry per API path, listing the host files it changed in; most severe first. */
@@ -267,7 +268,7 @@ async function groupContext(channel, group, rollouts) {
 }
 
 /** Subject, text and HTML of one subscriber's alert; `update`: a follow-up carrying only new API changes. */
-function renderAlert(ctx, { changes, severity, unsubscribe, watched, update = false }) {
+function renderAlert(ctx, { changes, severity, unsubscribe, watched, apps = [], update = false }) {
   const entries = apiEntries(changes);
   const limit = 25;
   // The same count as the site and RSS: one per API path and kind, however many host files carry it.
@@ -311,6 +312,7 @@ function renderAlert(ctx, { changes, severity, unsubscribe, watched, update = fa
       url: ctx.url,
       unsubscribe,
       watched,
+      apps: apps.map(appLabel),
       update,
     }),
   };
@@ -325,6 +327,20 @@ const activeSubscribers = async (channel) =>
     .find({ confirmedAt: { $ne: null }, unsubscribedAt: null, channels: legacyOf(channel) })
     .toArray();
 const watchesOf = (sub) => (sub.watchItems ?? []).map((w) => ({ pattern: w.pattern, hosts: w.hosts ?? [] }));
+/**
+ * A subscriber's filter: the watchlist, then the applications they chose. `narrowed`: either is set, so only
+ * matching API changes count. `apps` names the applications in the email when no watchlist is set.
+ */
+function filterOf(sub) {
+  const watches = watchesOf(sub);
+  const apps = sub.apps ?? [];
+  return {
+    pick: (changes) => changesInApps(apps, matchingChanges(watches, changes)),
+    narrowed: watches.length > 0 || apps.length > 0,
+    watched: watches.length > 0,
+    apps: watches.length ? [] : apps,
+  };
+}
 
 /** `changes` without those already in `sent`, by API path and kind (the hosts are detail, not news). */
 export function newChanges(changes, sent) {
@@ -370,8 +386,8 @@ async function notifyGroup(channel, group, rollouts) {
   );
   const subscribers = fromHere ? await activeSubscribers(channel) : [];
   for (const sub of subscribers) {
-    const watches = watchesOf(sub);
-    const relevant = matchingChanges(watches, ctx.changes);
+    const filter = filterOf(sub);
+    const relevant = filter.pick(ctx.changes);
     // "Update" in the subject only for those who got the first email; once the group was alerted on, every
     // later email carries only changes not sent before (also to someone who subscribed in between, and for
     // groups alerted before the delivery queue existed, which have no rows to tell who got what).
@@ -379,15 +395,15 @@ async function notifyGroup(channel, group, rollouts) {
     let changes = relevant;
     let severity;
     if (prior) {
-      changes = newChanges(relevant, matchingChanges(watches, prior));
+      changes = newChanges(relevant, filter.pick(prior));
       if (changes.length === 0 && !ctx.flagsChanged) continue;
       severity = updateSeverity(changes);
     } else {
-      // With a watchlist only matching API changes count; without one, any rollout that changed the API.
-      // A loader-flags-changed event concerns every add-in, watchlist or not.
-      if (watches.length && relevant.length === 0 && !ctx.flagsChanged) continue;
-      if (!watches.length && !emailWorthy(ctx)) continue;
-      severity = watches.length && !ctx.flagsChanged ? maxSeverity(relevant.map((c) => c.severity)) : ctx.severity;
+      // With a watchlist or chosen applications only matching API changes count; without them, any rollout
+      // that changed the API. A loader-flags-changed event concerns every add-in, filter or not.
+      if (filter.narrowed && relevant.length === 0 && !ctx.flagsChanged) continue;
+      if (!filter.narrowed && !emailWorthy(ctx)) continue;
+      severity = filter.narrowed && !ctx.flagsChanged ? maxSeverity(relevant.map((c) => c.severity)) : ctx.severity;
     }
     if (SEVERITY_RANK[severity] < SEVERITY_RANK[sub.minSeverity ?? "low"]) continue;
 
@@ -399,7 +415,7 @@ async function notifyGroup(channel, group, rollouts) {
       to: sub.email,
       message: {
         headers: unsubscribeHeaders(unsubscribe),
-        ...renderAlert(ctx, { changes, severity, unsubscribe, watched: watches.length > 0, update }),
+        ...renderAlert(ctx, { changes, severity, unsubscribe, watched: filter.watched, apps: filter.apps, update }),
       },
     });
   }
@@ -409,7 +425,7 @@ async function notifyGroup(channel, group, rollouts) {
 }
 
 /** Subject, text and HTML of one subscriber's rollback alert. */
-function renderRollback(ctx, items, { changes, unsubscribe, watched }) {
+function renderRollback(ctx, items, { changes, unsubscribe, watched, apps = [] }) {
   const entries = apiEntries(changes);
   const limit = 25;
   const peakShare = Math.max(0, ...items.map((r) => r.peakShare ?? 0));
@@ -445,13 +461,15 @@ function renderRollback(ctx, items, { changes, unsubscribe, watched }) {
       url: ctx.url,
       unsubscribe,
       watched,
+      apps: apps.map(appLabel),
     }),
   };
 }
 
 /**
  * A pulled-back build always alerts — also without API changes and below minSeverity: the add-in is
- * suddenly back on the previous code. Watchlist subscribers only when the build touched a watched API.
+ * suddenly back on the previous code. Subscribers with a watchlist or chosen applications only when the build
+ * touched a matching API.
  */
 async function notifyRollback(channel, group, items) {
   const ctx = await groupContext(channel, group, items);
@@ -463,11 +481,16 @@ async function notifyRollback(channel, group, items) {
     : [];
   const subscribers = fromHere ? await activeSubscribers(channel) : [];
   for (const sub of subscribers) {
-    const watches = watchesOf(sub);
-    const relevant = matchingChanges(watches, ctx.changes);
-    if (watches.length && relevant.length === 0) continue;
+    const filter = filterOf(sub);
+    const relevant = filter.pick(ctx.changes);
+    if (filter.narrowed && relevant.length === 0) continue;
     const unsubscribe = unsubscribeUrl(sub);
-    const { line: _line, ...email } = renderRollback(ctx, items, { changes: relevant, unsubscribe, watched: watches.length > 0 });
+    const { line: _line, ...email } = renderRollback(ctx, items, {
+      changes: relevant,
+      unsubscribe,
+      watched: filter.watched,
+      apps: filter.apps,
+    });
     messages.push({
       ...base,
       transport: "email",
@@ -501,7 +524,8 @@ export async function sendPreviewEmails(to) {
   const alert = renderAlert(ctx, { changes: ctx.changes, severity: ctx.severity, unsubscribe, watched: false });
   const confirm = confirmEmail({ link: `${config.publicUrl}/confirm?token=preview`, channels: ["prod", "beta"] });
   const { line, ...rollback } = renderRollback(ctx, withChanges, { changes: ctx.changes, unsubscribe, watched: false });
-  for (const email of [confirm, alert, rollback])
+  const signIn = signInEmail({ code: "123456", settings: `${config.publicUrl}/settings#token=preview` });
+  for (const email of [confirm, signIn, alert, rollback])
     await sendEmail({ to, ...email, subject: `[preview] ${email.subject}` });
-  return { channel: newest.channel, group: newest.group, changes: ctx.changes.length, emails: 3 };
+  return { channel: newest.channel, group: newest.group, changes: ctx.changes.length, emails: 4 };
 }

@@ -3,6 +3,8 @@
  * Pure: the route stores what this returns. Matching of the watchlist is analysis/watchlist.js.
  */
 
+import { APPS } from "../analysis/apps.js";
+
 /** Host types a watch can be narrowed to (`hostTypeOf` of the CDN's host files). */
 export const WATCH_HOSTS = ["excel", "word", "powerpoint", "onenote", "visio"];
 
@@ -16,7 +18,10 @@ const PATTERN = /^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*(\.\*)?$/;
 
 const fail = (error, detail) => ({ error, ...(detail !== undefined && { detail }) });
 
-/** { settings } or { error, detail }: channels, minSeverity and watchItems, normalised and deduplicated. */
+/**
+ * { settings } or { error, detail }: channels, minSeverity, apps and watchItems, normalised and deduplicated.
+ * `apps` narrows alerts to the API of these applications (analysis/apps.js); empty, or every one, means all.
+ */
 export function parseSettings(body) {
   if (!body || typeof body !== "object") return fail("invalid_body");
 
@@ -24,6 +29,10 @@ export function parseSettings(body) {
   if (!channels?.length || !channels.every((c) => CHANNELS.includes(c))) return fail("invalid_channels");
 
   if (!SEVERITIES.includes(body.minSeverity)) return fail("invalid_severity");
+
+  const chosen = body.apps ?? [];
+  if (!Array.isArray(chosen) || !chosen.every((a) => APPS.includes(a))) return fail("invalid_apps");
+  const apps = chosen.length && new Set(chosen).size < APPS.length ? APPS.filter((a) => chosen.includes(a)) : [];
 
   const items = body.watchItems ?? [];
   if (!Array.isArray(items)) return fail("invalid_watchlist");
@@ -42,5 +51,5 @@ export function parseSettings(body) {
   }
   if (watchItems.length > MAX_WATCH_ITEMS) return fail("too_many_patterns", MAX_WATCH_ITEMS);
 
-  return { settings: { channels: CHANNELS.filter((c) => channels.includes(c)), minSeverity: body.minSeverity, watchItems } };
+  return { settings: { channels: CHANNELS.filter((c) => channels.includes(c)), minSeverity: body.minSeverity, apps, watchItems } };
 }

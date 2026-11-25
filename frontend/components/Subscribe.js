@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { remembered } from "@/lib/account";
 import { signupSource, track, trackOnce } from "@/lib/analytics";
 import { useToast } from "./Toast";
 
@@ -13,6 +14,9 @@ const ERRORS = {
 export default function Subscribe() {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  // A subscriber this browser remembers sees their address and the way to their settings, not the form.
+  const [known, setKnown] = useState(null);
+  useEffect(() => setKnown(remembered()), []);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -34,6 +38,21 @@ export default function Subscribe() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (known) {
+    return (
+      <div className="subscribe subscribe-known" id="subscribe">
+        <p>
+          Alerts go to <b>{known.email}</b>. <Link href="/settings">Manage alerts</Link>
+        </p>
+        <p className="fineprint">
+          <button type="button" className="link-button" onClick={() => setKnown(null)}>
+            Subscribe another email
+          </button>
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -60,6 +79,8 @@ export default function Subscribe() {
       <p className="fineprint">
         One confirmation email, then alerts only when Office.js changes. Unsubscribe in one click.{" "}
         <Link href="/privacy">Privacy</Link>
+        <br />
+        Already subscribed? <Link href="/settings">Manage your alerts</Link>
       </p>
     </form>
   );

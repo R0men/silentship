@@ -124,7 +124,7 @@ const USAGE = `usage:
   cli dev                                    like start, on a throwaway in-memory MongoDB
   cli watch <email> <pattern> [host,host]    add a watchlist entry, e.g. Excel.Range.* excel
   cli reclassify [--dry-run]                 bring stored API changes up to the current severity rules
-  cli mail-preview <email>                   send sample confirmation, alert and rollback emails (real data, dummy tokens)
+  cli mail-preview <email>                   send sample confirmation, sign-in, alert and rollback emails (real data, dummy tokens)
   cli subscribers                            confirmed subscribers per source (utm_source, referrer, direct)
   cli snapshots <file> <from> [to]           per-run samples of a file, from MongoDB and the backup files, e.g. onenote-winrt-16.00.js 2026-10-15 2026-10-16`;
 

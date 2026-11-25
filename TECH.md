@@ -97,8 +97,10 @@ The loader picks the host file from `_host_Info` (from `window.external.GetHostI
      on Windows and Mac only, `WordApiOnline` and `ExcelApiOnline` on the web only.
 4. **Watchlist:** a subscriber lists the APIs their add-in uses (`Office.context.ui.displayDialogAsync`,
    `Excel.Range.*`) and is alerted only about changes that touch them — the main defence against noise.
-   Subscribers edit it on `/settings` (linked from every email), with channels and the minimum severity.
-   Without a watchlist, email goes out only for rollouts that changed the public API or are High, and only
+   Subscribers edit it on `/settings` (linked from every email and from the site's nav; sign-in by an emailed
+   code, no password; the browser remembers them in localStorage), with channels, the minimum severity and the
+   applications (Excel, Word, PowerPoint, Outlook, OneNote, Visio, Common API — several at once; none chosen
+   means all), which narrow alerts the same way. Without a watchlist or applications, email goes out only for rollouts that changed the public API or are High, and only
    once a version has been seen in two runs: a build with zero API changes is noise for add-in developers,
    and a one-run sighting is a short CDN incident rather than a release (kept in the data, see PLAN).
    A confirmed build that every edge stops serving for 24 hours is a rollback and **always** alerts.

@@ -16,7 +16,7 @@ built — [`seo.md`](seo.md), [`web.md`](web.md).
 | [`crawler.md`](crawler.md) | Loader → file manifest, samples on fresh connections, conditional requests, build stamps, HTTP metadata | `backend/src/crawler/*`, `backend/src/pipeline/run.js` |
 | [`rollouts.md`](rollouts.md) | A rollout of one version of one file: edge share, stable/stale, completion, pull-back, groups by build | `backend/src/pipeline/rollouts.js`, `backend/src/pipeline/run.js` |
 | [`api-surface.md`](api-surface.md) | API reflection in an isolated process, `bodyHash`, diff, severity, status from `@types`, renames | `backend/src/analysis/*` |
-| [`alerts.md`](alerts.md) | Double opt-in subscriptions, watchlist, alert batching, email templates, Brevo and Slack | `backend/src/notify/*`, `backend/src/analysis/watchlist.js`, `backend/src/web/server.js` |
+| [`alerts.md`](alerts.md) | Double opt-in subscriptions, watchlist, alert batching, email templates, Brevo and Slack | `backend/src/notify/*`, `backend/src/analysis/watchlist.js`, `backend/src/analysis/apps.js`, `backend/src/web/server.js` |
 | [`data.md`](data.md) | MongoDB collections and indexes, the git archive | `backend/src/db.js`, `backend/src/archive/git-archive.js` |
 | [`web.md`](web.md) | JSON API, RSS, SSE `/api/live`, `/health`, the single source of numbers | `backend/src/web/*` |
 | [`frontend.md`](frontend.md) | The Next.js site: pages, proxy to the backend, live updates, design | `frontend/*` |

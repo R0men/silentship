@@ -1207,6 +1207,14 @@ h2 {
   font-family: var(--mono);
   color: var(--muted);
 }
+.settings-apps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 28px;
+}
+.settings-apps .check {
+  margin-top: 4px;
+}
 .watch-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 150px 32px;
@@ -1531,8 +1539,15 @@ main:has(.post) {
 
 /* /reference hub: by build, documented first; the filter hides undocumented rows (HubFilter). */
 .hub-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   margin: 36px 0 8px;
   font-size: 14px;
+}
+/* The application filter (HubFilter) shows one of these per build header; the rest are hidden. */
+.hub-view {
+  display: contents;
 }
 .hub[data-show="documented"] .hub-undocumented,
 .hub[data-show="documented"] .hub-internal-count {
@@ -1709,4 +1724,62 @@ main:has(.post) {
 }
 .errors .faint {
   font-size: 12px;
+}
+
+/* ---------- Sign-in and the remembered subscriber (SignIn, Settings, Subscribe) ---------- */
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.link-button:hover {
+  color: var(--text);
+}
+.link-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.settings-save .link-button {
+  font-size: 13px;
+}
+.signin {
+  max-width: 520px;
+}
+.signin .field {
+  margin: 20px 0 12px;
+}
+.signin-code {
+  letter-spacing: 0.2em;
+}
+.settings-welcome {
+  margin: 8px 0 28px;
+  padding: 14px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.settings-welcome b {
+  color: var(--text);
+  font-weight: 500;
+}
+.subscribe-known p {
+  margin: 0 0 8px;
+}
+.subscribe-known a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* Phones: the nav keeps its three links; Alerts stays reachable from the subscribe form. */
+@media (max-width: 420px) {
+  .nav nav .nav-alerts {
+    display: none;
+  }
 }

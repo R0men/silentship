@@ -12,13 +12,14 @@ Code: `backend/src/web/server.js` (Fastify, routes), `queries.js` (read models),
 | `GET /api/home` | The home page in one call (`homeSnapshot`): `{ overview, rollouts, at }` — `/api/overview` plus the 30 newest releases; the same object `/api/live` pushes | `/api/*` |
 | `GET /api/rollouts?channel&severity&before&limit` | Releases (`listReleases`), newest first; `channel` is the track; `before` is a `firstSeenAt` cursor; `limit` 1–100 (30) | `/api/*` |
 | `GET /api/rollouts/:track/:group` | One release (`getRelease`): both `endpoints`, hosts, share history and API changes of the primary group (the same `Office.*` change from several files is one row with the file list), `differentFiles`, `notYetOn`, `flags` (the `loader-flags-changed` notice per endpoint, empty unless the flags changed), `loader`: `identical`, `flags-only` (same `bodyHashSansFlags`), `different`; `canonicalTrack`: `"prod"` for a beta release with exactly the same API changes as production's release of the build, else null ([`seo.md`](seo.md)). 404 for a OneCDN channel | `/api/*` |
-| `GET /api/types` | Every API type changed by a confirmed rollout (`listApiTypes`): channels, kinds, highest severity, dates | `/api/*` |
+| `GET /api/types` | Every API type changed by a confirmed rollout (`listApiTypes`): channels, kinds, highest severity, dates, `app` (the Office application, `analysis/apps.js`) | `/api/*` |
 | `GET /api/types/:type` | One type's change history (`getApiType`): one event per group, path and kind with files and pulled-back files, related types; `type` in the reply is the canonical spelling | `/api/*` |
 | `GET /api/sitemap` | Keys and dates of every rollout page (without beta releases whose canonical page is production's) and every API type page with its `docs` status, for `/sitemap.xml` ([`seo.md`](seo.md)) | `/api/*` |
 | `GET /api/live` | Server-Sent Events, see below | `/api/*` |
 | `GET /rss.xml` | RSS 2.0, the 50 newest releases (one item per track and build) | `/rss.xml` |
 | `POST /api/subscribe`, `GET\|POST /confirm`, `GET\|POST /unsubscribe` | Subscriptions; GET only shows a page with a button, POST changes state ([`alerts.md`](alerts.md)) | yes |
-| `GET\|POST /api/settings?token=…` | A subscriber's channels, `minSeverity` and watchlist, for `/settings` ([`alerts.md`](alerts.md)) | yes |
+| `POST /api/signin`, `POST /api/signin/verify` | Passwordless sign-in to `/settings`: an emailed 6-digit code in exchange for the subscriber's token ([`alerts.md`](alerts.md)) | yes |
+| `GET\|POST /api/settings?token=…` | A subscriber's channels, `minSeverity`, applications and watchlist, for `/settings` ([`alerts.md`](alerts.md)) | yes |
 
 ## The single source of numbers
 
