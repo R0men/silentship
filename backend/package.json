@@ -26,8 +26,8 @@
   },
   "dependencies": {
     "@babel/parser": "^7.29.9",
-    "@types/office-js": "^1.0.612",
-    "@types/office-js-preview": "^1.0.732",
+    "@types/office-js": "^1.0.616",
+    "@types/office-js-preview": "^1.0.736",
     "dotenv": "^18.0.8",
     "fastify": "^5.12.7",
     "mongodb": "^7.7.0",
