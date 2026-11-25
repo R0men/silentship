@@ -59,6 +59,7 @@ Limits: only the JavaScript layer served from the CDN is visible. Breakages insi
 - [RSS feed](${SITE_URL}/rss.xml): one item per rollout, newest first
 - [Office.js API changes](${SITE_URL}/reference): every class, enum and function whose public API changed, one page per type with its history
 - [Notes](${SITE_URL}/notes): write-ups on observed rollouts and how the monitor works ([RSS](${SITE_URL}/notes/rss.xml))
+- [API](${SITE_URL}/developers): free read-only JSON API, no key, CORS enabled: releases (${SITE_URL}/api/v1/releases) and API changes per type (${SITE_URL}/api/v1/types)
 - [Sitemap](${SITE_URL}/sitemap.xml): every rollout and API type page
 
 ## Notes

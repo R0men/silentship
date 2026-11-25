@@ -26,6 +26,7 @@ import {
 import { createLiveFeed } from "./live.js";
 import { createRunCache } from "./run-cache.js";
 import { actionPage } from "./action-page.js";
+import { publicApi } from "./public-api.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GROUP_RE = /^[\w.-]{1,80}$/;
@@ -98,6 +99,10 @@ export async function buildServer() {
   const allowConfirmationEmail = rateLimiter(config.maxConfirmationsPerHour, 3600_000);
   const live = createLiveFeed();
   const cached = createRunCache(() => live.version);
+
+  // The public read-only API (public-api.js): its own shapes, limits, CORS and cache, so its traffic cannot
+  // push the site's pages out of the cache above.
+  await app.register(publicApi({ cached: createRunCache(() => live.version, 200) }), { prefix: "/api/v1" });
 
   /** For uptime monitors: 503 unless every channel finished a crawl recently and none is stuck. */
   app.get("/health", async (_req, reply) => {

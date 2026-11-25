@@ -316,6 +316,8 @@ describe("subscription links", () => {
   it("reads and saves alert settings by the email token; the alert links them", async () => {
     const get = await app.inject({ method: "GET", url: "/api/settings?token=tok" });
     expect(get.statusCode).toBe(200);
+    // Personal data: never readable from another origin (CORS is for the public /api/v1 only).
+    expect(get.headers["access-control-allow-origin"]).toBeUndefined();
     expect(get.json()).toMatchObject({ email: "dev@example.test", channels: ["prod", "beta"], minSeverity: "low", apps: [], watchItems: [] });
     expect(get.json().appList.map(([a]) => a)).toEqual(["Excel", "Word", "PowerPoint", "Outlook", "OneNote", "Visio", "Common"]);
 

@@ -1,6 +1,7 @@
 # Backend web API
 
-Code: `backend/src/web/server.js` (Fastify, routes), `queries.js` (read models), `live.js` (SSE). Listens on
+Code: `backend/src/web/server.js` (Fastify, routes), `queries.js` (read models), `live.js` (SSE),
+`public-api.js` (the public `/api/v1`). Listens on
 `API_HOST:API_PORT` (`127.0.0.1:4000`); reachable from outside only through the frontend's proxy.
 
 ## Routes
@@ -19,7 +20,40 @@ Code: `backend/src/web/server.js` (Fastify, routes), `queries.js` (read models),
 | `GET /rss.xml` | RSS 2.0, the 50 newest releases (one item per track and build) | `/rss.xml` |
 | `POST /api/subscribe`, `GET\|POST /confirm`, `GET\|POST /unsubscribe` | Subscriptions; GET only shows a page with a button, POST changes state ([`alerts.md`](alerts.md)) | yes |
 | `POST /api/signin`, `POST /api/signin/verify` | Passwordless sign-in to `/settings`: an emailed 6-digit code in exchange for the subscriber's token ([`alerts.md`](alerts.md)) | yes |
+| `GET /api/v1/…` | The public read-only API, see "Public API (v1)" below and `/developers` | `/api/*` |
 | `GET\|POST /api/settings?token=…` | A subscriber's channels, `minSeverity`, applications and watchlist, for `/settings` ([`alerts.md`](alerts.md)) | yes |
+
+## Public API (v1)
+
+`/api/v1` (`public-api.js`, a Fastify plugin with its own hooks) is the documented API at `/developers`:
+`/releases?track&severity&before&limit` (`{ releases, next }`), `/releases/:track/:build` (with `hostFiles` and
+`changes`), `/types`, `/types/:type`. The internal routes above serve the site and may change with it; v1 does not.
+
+- **Own shapes.** `v1Release`, `v1ReleaseDetail`, `v1Change`, `v1Type`, `v1TypeDetail` copy named fields
+  only, so nothing internal (`region`, share history, `lowered`, …) leaks and a read-model change does not
+  change the API. Public names: `track`, `build`, status `pulledBack` for `abandoned`, `documentation` for
+  `apiStatus`, `app` from `analysis/apps.js`.
+- **Compatibility rule:** v1 only gains fields; renaming, removing or changing the meaning of one is `/api/v2`,
+  with v1 kept running. New enum values (`kind`, `status`, `app`) may appear and are documented as such.
+  `test/public-api.test.js` pins the release field list.
+- **CORS** `Access-Control-Allow-Origin: *` on this prefix only, never with credentials: nothing here reads a
+  cookie or token or returns personal data. `/api/settings`, `/api/signin` and the rest send no CORS headers
+  (a test checks `/api/settings`). Also `X-Content-Type-Options: nosniff`, `Content-Security-Policy:
+  default-src 'none'; frame-ancestors 'none'`, `Cross-Origin-Resource-Policy: cross-origin`,
+  `Referrer-Policy: no-referrer`; `Cache-Control: public, max-age=60` on 2xx and 404, `no-store` on errors.
+  `OPTIONS` answers a preflight (204, GET/HEAD/OPTIONS, max-age a day) without counting it.
+- **Rate limits before any work:** `V1_LIMIT_PER_MINUTE` (60) per client — an IPv4 address or an IPv6 /64
+  (`clientKey`), from `req.ip`, which trusts loopback proxies only, so it is nginx's `X-Forwarded-For` —
+  and `V1_OVERALL_PER_MINUTE` (1 200) for everyone, so the database load is bounded whatever the number of
+  clients. Fixed one-minute windows (`windowLimiter`); when its table (50 000 clients) is full, expired
+  entries are swept and a new client is refused rather than a limited one forgotten. `RateLimit-*` headers
+  on every answer, `429` with `Retry-After`.
+- **Validation:** every parameter against a list or a pattern (`limit` 1–100 digits only, `before` a date
+  of at most 40 characters, a repeated parameter is invalid); unknown parameters are ignored. Errors are fixed
+  codes (`invalid_*`, `not_found`, `rate_limited`, `busy`, `internal`); details go to the log only.
+- **Cost:** a run cache of its own (200 entries), so API traffic cannot push the site's pages out; paging
+  with `before` is not cached (every cursor would be a new key); `/types/:type` answers 404 for a type no
+  build changed from the cached type list, without a database query.
 
 ## The single source of numbers
 

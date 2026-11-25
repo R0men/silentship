@@ -58,9 +58,9 @@ export default function RootLayout({ children }) {
                 <Link className="nav-alerts" href="/settings">
                   Alerts
                 </Link>
-                <a className="nav-rss" href="/rss.xml">
-                  RSS
-                </a>
+                <Link className="nav-api" href="/developers">
+                  API
+                </Link>
               </nav>
             </header>
             <main>{children}</main>
@@ -73,6 +73,7 @@ export default function RootLayout({ children }) {
               <p>Not affiliated with Microsoft. Metadata and API-surface diffs only — no Microsoft code.</p>
               <p className="footer-links">
                 <Link href="/notes">Notes</Link>
+                <a href="/rss.xml">RSS</a>
                 <a href={SITE.repo} rel="noopener">
                   GitHub
                 </a>

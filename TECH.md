@@ -130,7 +130,8 @@ four issues about `displayDialogAsync` appeared". Cheap, and it adds context tha
 
 ## 3. What is published
 
-The site, RSS, `llms.txt` and this repository contain **only metadata and API-surface diffs** — paths,
+The site, RSS, the public read-only API (`/api/v1`, documented at `/developers`; no key, CORS open, rate
+limited, v1 only gains fields), `llms.txt` and this repository contain **only metadata and API-surface diffs** — paths,
 arity, enum values, build numbers, shares. Microsoft's code (raw or formatted) lives only in the private
 archive on the server and is never committed here; tests use synthetic fixtures.
 

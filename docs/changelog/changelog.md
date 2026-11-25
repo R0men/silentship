@@ -29,6 +29,8 @@
   - `[Feature]` `/reference` filters by application (Excel, Word, PowerPoint, Outlook, OneNote, Visio, Common API)
   - `[Feature]` Alerts only for the applications a subscriber chooses, several at once
   - `[Feature]` Sign-in to alert settings by an emailed code; confirming opens the settings; the browser remembers the subscriber
+  - `[Feature]` Public read-only API `/api/v1` (no key, CORS, rate limited, stable format), documented at `/developers`; API in the nav, RSS in the footer
+  - `[Infra]` The frontend listens on 127.0.0.1 only
 
 - **2026-11-21** — [2026-11-21.md](2026-11-21.md)
   - `[Bug Fix]` Microsoft's docs went back to appsforoffice: OneCDN is no longer called recommended, the loader-flags notice links our endpoints note

@@ -18,7 +18,7 @@ built — [`seo.md`](seo.md), [`web.md`](web.md).
 | [`api-surface.md`](api-surface.md) | API reflection in an isolated process, `bodyHash`, diff, severity, status from `@types`, renames | `backend/src/analysis/*` |
 | [`alerts.md`](alerts.md) | Double opt-in subscriptions, watchlist, alert batching, email templates, Brevo and Slack | `backend/src/notify/*`, `backend/src/analysis/watchlist.js`, `backend/src/analysis/apps.js`, `backend/src/web/server.js` |
 | [`data.md`](data.md) | MongoDB collections and indexes, the git archive | `backend/src/db.js`, `backend/src/archive/git-archive.js` |
-| [`web.md`](web.md) | JSON API, RSS, SSE `/api/live`, `/health`, the single source of numbers | `backend/src/web/*` |
+| [`web.md`](web.md) | JSON API, the public `/api/v1`, RSS, SSE `/api/live`, `/health`, the single source of numbers | `backend/src/web/*` |
 | [`frontend.md`](frontend.md) | The Next.js site: pages, proxy to the backend, live updates, design | `frontend/*` |
 | [`seo.md`](seo.md) | Metadata, canonical URLs, Open Graph, generated `sitemap.xml`, `robots.txt`, `llms.txt` | `frontend/app/{layout,page,sitemap,robots,opengraph-image}.js`, `frontend/app/llms.txt/route.js`, `frontend/lib/site.js` |
 | [`analytics.md`](analytics.md) | Umami: the script, events, privacy | `frontend/app/layout.js`, `frontend/lib/analytics.js` |

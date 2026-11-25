@@ -1021,7 +1021,7 @@ h2 {
   .nav nav {
     gap: 18px;
   }
-  .nav nav .nav-rss {
+  .nav nav .nav-api {
     display: none;
   }
   .lede {

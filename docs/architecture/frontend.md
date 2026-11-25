@@ -16,6 +16,7 @@ Code: `frontend/` — Next.js 16 (App Router, Turbopack), React 19, JavaScript. 
 | `/reference/[type]` | `app/reference/[type]/page.js` — one API type: state per channel, advice, change history, related types; wording in `lib/apiType.js` ([`seo.md`](seo.md)) | SSR on every request |
 | `/notes` | `app/notes/page.js` — every note, newest first | static at build time |
 | `/notes/[slug]` | `app/notes/[slug]/page.js` — one note: Markdown from `content/notes/<slug>.md` rendered by `lib/notes.js` | static at build time (`generateStaticParams`, unknown slug → 404) |
+| `/developers` | `app/developers/page.js` — documentation of the public API `/api/v1` ([`web.md`](web.md)): basics, limits, the compatibility rule, fields, errors; linked as "API" in the nav (hidden on narrow screens, like RSS was; RSS moved to the footer) | static at build time |
 | `/privacy` | `app/privacy/page.js`; operator details in `lib/site.js` | static at build time |
 | `/sitemap.xml`, `/robots.txt`, `/llms.txt`, `/opengraph-image` | [`seo.md`](seo.md) | — |
 
